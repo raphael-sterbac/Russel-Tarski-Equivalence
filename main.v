@@ -10,31 +10,40 @@ Inductive ty : Type :=
     | Prod : ty -> ty -> ty
     | Decode : lvl -> term -> ty
     | U : lvl -> ty
-    | subst_ty : term -> ty -> ty
-    | weak_ty : ty -> ty
 with term : Type :=
     | var_term : nat -> term
     | Lambda : ty -> ty -> term -> term
     | App : ty -> ty -> term -> term -> term
     | cProd : lvl -> term -> term -> term
     | cU : lvl -> lvl -> term
-    | cLift : lvl -> lvl -> term -> term
-    | subst_term : term -> term -> term
-    | weak_term : term -> term.
+    | cLift : lvl -> lvl -> term -> term.
 
 Inductive russ_term : Type :=
     | r_var_term : nat -> russ_term
     | r_Prod : russ_term -> russ_term -> russ_term
     | r_U : lvl -> russ_term
     | r_Lambda : russ_term -> russ_term -> russ_term -> russ_term
-    | r_App : russ_term -> russ_term -> russ_term -> russ_term -> russ_term
-    | r_subst_term : russ_term -> russ_term -> russ_term
-    | r_weak_term : russ_term -> russ_term.
+    | r_App : russ_term -> russ_term -> russ_term -> russ_term -> russ_term.
+
+
+(* ----- Substitutions ----- *)
+Axiom subst_ty : term -> ty -> ty.
+Axiom weak_ty : ty -> ty.
+
+Axiom subst_term : term -> term -> term.
+Axiom weak_term : term -> term.
+
+Axiom r_subst_term : russ_term -> russ_term -> russ_term.
+Axiom r_weak_term : russ_term -> russ_term.
+
+(* ----- Contexts ----- *)
 
 Definition ctx := list ty.
 
 Notation "'ε'" := (@nil ty).
 Notation " Γ ,, A " := (@cons ty A Γ) (at level 20, A at next level).
+
+(* ----- Rules ----- *)
 
 Reserved Notation "[ |- Γ ]"  (at level 0, Γ at level 50).
 Reserved Notation "[ Γ |- t : A ]" (at level 0, Γ, t, A at level 50).
@@ -133,7 +142,7 @@ with ConvTermDecl : ctx -> term -> term -> ty -> Type :=
             [ Γ |- A ] ->
             [ Γ ,, A |- t : B ] ->
             [ Γ |- a : A ] ->
-            [ Γ |- App (Prod A B) B (Lambda A B t) a = subst_term a t : subst_ty a B ]
+            [ Γ |- App (Prod A B) B (Lambda A B t) a = (subst_term a t) : subst_ty a B ]
     | TermPiCong {Γ} {A B C D n} :
         [ Γ |- A : U n] ->
         [ Γ |- A = B : U n ] ->
@@ -194,7 +203,7 @@ and   "[ Γ |- A = B ]" := (ConvTypeDecl Γ A B)
 and   "[ Γ |- t = t' : T ]" := (ConvTermDecl Γ t t' T)
 and   "[ |- Γ ]" := (WfContextDecl Γ).
 
-(* Russel Universes *)
+(* ----- Russel Universes ----- *)
 
 Definition russ_ctx := list russ_term.
 
@@ -331,6 +340,8 @@ and   "[ Γ |-r t = t' : T ]" := (Russ_ConvTermDecl Γ t t' T)
 and   "[ |-r Γ ]" := (Russ_WfContextDecl Γ).
 
 
+(* ----- Shortands for products and sum types ----- *)
+
 Inductive prod (A B : Type) : Type := | pair : A -> B -> prod A B.
 
 Notation "x × y" := (prod x y) (at level 80, right associativity).
@@ -351,6 +362,7 @@ format "'[' '∑'  '/  ' x  ..  y ,  '/  ' p ']'")
 
 
 (* ----- Admitted Lemmas ---- *)
+
 Lemma substitution_lemma {Γ A B a} :
     [ Γ ,, A |- B ] ->
     [ Γ |- a : A ] ->
@@ -547,11 +559,6 @@ Lemma typing_hypothesis_inv Γ A b B:
     [ |- Γ ] × [Γ |- A] × [Γ,,A |- b: B].
 Proof. Admitted.
 
-(* TODO : Preuve des lemmes d'inv
-
-Supposer lemmes de cohesion ? Pi A B != U n par ex. Permet de se débarasser de la règle embêtante
-dans les inversions (~ elim des coupures). *)
-
 
 (* ----- Lemmes de modifications ----*)
 Lemma conv_hypothesis_wftype {Γ A B C}:
@@ -588,8 +595,6 @@ Fixpoint erase_term (t: term) : russ_term :=
         | var_term n => r_var_term n 
         | Lambda A B b => r_Lambda (erase_ty A) (erase_ty B) (erase_term b)
         | App A B c a => r_App (erase_ty A) (erase_ty B) (erase_term c) (erase_term a)
-        | subst_term a b => r_subst_term (erase_term a) (erase_term b)
-        | weak_term t => r_weak_term (erase_term t)
         | cU n m => r_U n
         | cProd l a b => r_Prod (erase_term a) (erase_term b)
         | cLift n m t => (erase_term t)
@@ -599,8 +604,6 @@ with erase_ty (A: ty): russ_term :=
         | Prod A B => r_Prod (erase_ty A) (erase_ty B)
         | U n => r_U n
         | Decode n t => (erase_term t)
-        | subst_ty t A => r_subst_term (erase_term t) (erase_ty A)
-        | weak_ty A => r_weak_term (erase_ty A)
     end.
 
 Fixpoint erase_context (Γ : ctx): russ_ctx := 
@@ -614,6 +617,19 @@ Proof.
     (*TODO : utiliser les univers pour retrouver le type produit quand on a seulement les jugements de typage *)
 Admitted.
 
+
+(* ----- Erasure of substitutions lemma ----- *)
+
+Lemma erase_weak_ty {Γ A} : [Γ |-r r_weak_term (erase_ty A) = erase_ty (weak_ty A) ].
+Proof. Admitted.
+
+Lemma erase_subst_ty {Γ a A} : [Γ |-r r_subst_term (erase_term a) (erase_ty A) = erase_ty (subst_ty a A) ].
+Proof. Admitted.
+
+Lemma erase_subst_term {Γ a t B} : [Γ |-r r_subst_term (erase_term a) (erase_term t) = erase_term (subst_term a t) : B].
+Proof. Admitted.
+
+
 (* ----- Lemme de correction de l'effacement ----- *)
 Lemma erasure_correction_wf_ty {A} : forall Γ, [Γ |- A] -> [(erase_context Γ) |-r (erase_ty A)]
 with erasure_correction_typing {a} : forall Γ A, [Γ |- a : A] -> [(erase_context Γ) |-r (erase_term a) : (erase_ty A)]
@@ -626,14 +642,16 @@ Proof.
     + simpl; apply product_wf_ty; auto.
     + simpl; apply erasure_correction_typing in t; apply r_wfTypeUniv in t; exact t.
 - induction 1.
-    + simpl. constructor. apply erasure_correction_wf_ty in w. auto.
-    + simpl; constructor. apply erasure_correction_wf_ty; auto. apply IHTypingDecl
+    + simpl. eapply r_TermConv. instantiate (1:=r_weak_term (erase_ty A)). constructor. apply erasure_correction_wf_ty in w. auto.
+    apply erase_weak_ty.
+    + simpl. eapply r_TermConv. instantiate (1:=r_weak_term (erase_ty B)). constructor. apply erasure_correction_wf_ty; auto. apply IHTypingDecl.
+    apply erase_weak_ty.
     + simpl; simpl in IHTypingDecl1; simpl in IHTypingDecl2; constructor; auto.
     + simpl; constructor; auto.
-    + simpl. apply r_wfTermUniv. apply ctx_formation_to_russ; auto. auto.
     + simpl; simpl in IHTypingDecl. apply r_wfTermCumul with (1:=l0) in IHTypingDecl; auto.
     + simpl; simpl in IHTypingDecl; constructor; auto.
-    + simpl; simpl in IHTypingDecl1; simpl in IHTypingDecl2; constructor; auto.
+    + simpl; simpl in IHTypingDecl1; simpl in IHTypingDecl2. eapply r_TermConv. instantiate (1:=r_subst_term (erase_term a) (erase_ty B)). constructor; auto.
+        apply erase_subst_ty.
     + apply erasure_correction_conversion in c; apply r_TermConv with (1:=IHTypingDecl); exact c.
 - induction 1.
     + simpl; constructor; auto.
@@ -647,11 +665,12 @@ Proof.
     + simpl. eapply r_TypeTrans. exact IHConvTypeDecl1. exact IHConvTypeDecl2.
     + simpl; constructor; auto.  
 - induction 1.
-    + simpl. constructor. apply erasure_correction_wf_ty in w. auto. apply erasure_correction_typing in t0. auto. apply erasure_correction_typing in t1; auto.
+    + simpl. eapply r_ConvConv. instantiate (1:=r_subst_term (erase_term a) (erase_ty B)). eapply r_TermTrans. instantiate (1:= r_subst_term (erase_term a) (erase_term t)).
+     constructor. apply erasure_correction_wf_ty in w. auto. apply erasure_correction_typing in t0. auto. apply erasure_correction_typing in t1; auto. apply erase_subst_term. apply erase_subst_ty.
     + simpl. apply r_TermUnivConv. constructor. apply erasure_correction_typing in t. apply r_wfTypeUniv in t. auto.
         apply r_TypeUnivConv in IHConvTermDecl1. auto. apply r_TypeUnivConv in IHConvTermDecl2. auto.
-    + simpl. constructor. apply erasure_correction_conversion in c. auto. apply erasure_correction_conversion in c0. auto.
-        auto. auto. 
+    + simpl. eapply r_ConvConv. instantiate (1:=r_subst_term (erase_term a) (erase_ty B)). constructor. apply erasure_correction_conversion in c. auto. apply erasure_correction_conversion in c0. auto.
+        auto. auto. apply erase_subst_ty. 
     + simpl. constructor. apply erasure_correction_wf_ty in w; auto. apply erasure_correction_conversion in c; auto.  
         apply erasure_correction_conversion in c0; auto. auto.
     + simpl. constructor. constructor. apply erasure_correction_typing in t; simpl in t; auto.  
@@ -661,7 +680,14 @@ Proof.
     + simpl. constructor. apply erasure_correction_typing in t; simpl in t; auto. eapply r_wfTermCumul.
         instantiate (1:= p). auto. eapply r_wfTermCumul. instantiate (1:=n). auto. auto.
     + simpl. simpl in IHConvTermDecl. eapply r_TermUnivCumul. instantiate (1:=n). auto. auto.
-    + simpl. constructor. apply erasure_correction_typing in t. auto.
+    + simpl. eapply r_TermTrans. instantiate (1:= r_Lambda (erase_ty A) (erase_ty B) (r_App (erase_ty A) (erase_ty B) (r_weak_term (erase_term f)) (r_var_term 0))).
+    apply wftype_typing_inv in t. destruct t. apply prod_ty_inv in w. destruct w. apply erasure_correction_wf_ty in w. apply erasure_correction_wf_ty in w0. apply r_TermLambdaCong. auto. apply r_TypeRefl. auto.
+    apply r_TypeRefl. auto. shelve.
+
+    (*TODO : utiliser la congruence et les lemmes d'erasure de substitution *)
+    
+    
+    constructor. apply erasure_correction_typing in t. auto.
     + constructor. apply erasure_correction_typing in t0; auto.
     + apply erasure_correction_conversion in c. eapply r_ConvConv. instantiate (1:= erase_ty A). auto. auto.
     + apply r_TermSym. auto.
@@ -669,10 +695,44 @@ Proof.
 - induction 1.
     all: try (constructor; auto).
     all: try (constructor; auto).
-Qed.
+Admitted.
 
 
 (* ----- Lemmes utiles ----- *)
+
+Lemma inf_right_max {k l}:
+    l < Nat.max k l.
+Proof.
+Admitted.
+
+Lemma inf_left_max {k l}:
+    k < Nat.max k l.
+Proof.
+Admitted.
+
+Lemma sup_max {k l n}:
+    k < n ->
+    l < n ->
+    Nat.max k l < n.
+Proof.
+Admitted.
+
+Lemma sup_right_min {k l}:
+    Nat.min k l < l.
+Proof.
+Admitted.
+
+Lemma sup_left_min {k l}:
+    Nat.min k l < k.
+Proof.
+Admitted.
+
+Lemma inf_min {k l n}:
+    n < k ->
+    n < l ->
+    n < Nat.min k l.
+Proof.
+Admitted.
 
 Lemma simplify_induction {Γ A0 A1 l0 l1 k v0 v1 u0 u1}:
     [Γ |- A0 = U l0] ->
@@ -811,24 +871,40 @@ Qed.
 
 Lemma erase_app_inv 
 {Γ t}:
-    forall A B f a A1 u,
+    forall A B f a A1,
     [Γ |- App A B f a : subst_ty a B] ->
     [Γ |- t : A1] ->
     (forall C, [Γ |- A] -> [Γ |- C] -> (erase_ty A = erase_ty C) -> [Γ |- A = C]) ->
     (forall C, [Γ,, A |- B] -> [Γ,,A |- C] -> (erase_ty B = erase_ty C) -> [Γ,,A |- B = C]) ->
     (forall Γ' u1 A1,
-    [Γ' |- u : B] ->
+    [Γ' |- f : Prod A B] ->
     [Γ' |- u1 : A1] ->
-    (erase_term u = erase_term u1) ->
-    ([Γ' |- u = u1 : B] × [Γ' |- B = A1])
+    (erase_term f = erase_term u1) ->
+    ([Γ' |- f = u1 : Prod A B] × [Γ' |- Prod A B = A1])
+    + (∑ l0 l1 k v0 v1, [Γ' |- Prod A B = U l0] 
+        × [Γ' |- A1 = U l1]
+        × [Γ' |- f = cLift k l0 v0 : Prod A B]
+        × [Γ' |- u1 = cLift k l1 v1 : A1]
+        × [Γ' |- v0 = v1 : U k] )) ->
+    (forall Γ' u1 A1,
+    [Γ' |- a : A] ->
+    [Γ' |- u1 : A1] ->
+    (erase_term a = erase_term u1) ->
+    ([Γ' |- a = u1 : A] × [Γ' |- B = A1])
     + (∑ l0 l1 k v0 v1, [Γ' |- B = U l0] 
         × [Γ' |- A1 = U l1]
-        × [Γ' |- u = cLift k l0 v0 : B]
+        × [Γ' |- a = cLift k l0 v0 : B]
         × [Γ' |- u1 = cLift k l1 v1 : A1]
         × [Γ' |- v0 = v1 : U k] )) ->
     r_App (erase_ty A) (erase_ty B) (erase_term f) (erase_term a) = erase_term t ->
     [Γ |- App A B f a = t : subst_ty a B ].
 Proof.
+    induction t.
+    all: try(intros; simpl in H5; contradict H5; congruence).
+    - intros. simpl in H5. inversion H5. assert (Hbis:=H). apply app_inv in Hbis. destruct Hbis as [? [? [? []]]].
+    apply H1 in H7. apply H2 in H8. apply H3 with (1:=t) in H9.
+        
+
 Admitted.
 
 Lemma erase_cprod_inv 
@@ -857,47 +933,44 @@ Lemma erase_cuniv_inv
     [ Γ |- cU k1 l1 : A0 ] ->
     [ Γ |- cLift k2 l2 t : A1 ] ->
     r_U k1 = erase_term t ->
-    k1 < k2 × [Γ |- cU k1 l1 = t : A0].
+    (∑ k v0 v1,
+        [Γ |- A0 = U l1] 
+        × [Γ |- A1 = U l2]
+        × [Γ |- cU k1 l1 = cLift k l1 v0 : A0]
+        × [Γ |- cLift k2 l2 t = cLift k l2 v1 : A1]
+        × [Γ |- v0 = v1 : U k] ). 
 Proof.
     induction t.
     all: try(intros; simpl in H1; contradict H1; congruence).
-    - intros. simpl in H1. inversion H1. rewrite H3 in H. 
-Admitted. 
+    - intros. simpl in H1. inversion H1. rewrite H3 in H. set (K:= Nat.min l0 l1).
+    assert (H0bis:=H0). apply lift_inv_plus in H0bis. destruct H0bis as [? [? [? []]]].
+    assert (tbis:=t). apply code_univ_inv_bis in tbis. destruct tbis. assert (Hbis :=H). apply code_univ_inv_bis in Hbis. destruct Hbis.
+    apply UInj in c0.
+    eexists K.  eexists (cU l K). eexists (cU l K). 
+    constructor. auto. constructor. symmetry in e; rewrite e in c; auto. constructor.
+    apply TermSym. eapply TermConv. instantiate (1:=U l1). eapply TermLiftingUnivConv.
+    apply inv_wfcontext_typing in t. destruct t. auto. apply inf_min. auto. auto.
+    apply sup_right_min. auto using TypeSym.
+    constructor. eapply TermConv. instantiate (1:= U l2). rewrite c0. eapply TermTrans.
+    instantiate (1:= cU l l2). apply TermLiftingUnivConv. apply inv_wfcontext_typing in t. destruct t. auto.
+    auto. rewrite c0 in l3. auto. apply TermSym. apply TermLiftingUnivConv. apply inv_wfcontext_typing in t. destruct t. auto.
+    apply inf_min. auto. auto. lia. rewrite e. auto using TypeSym. apply TermRefl. constructor. apply inv_wfcontext_typing in t. destruct t. auto.
+    apply inf_min. auto. auto.
+    
+    - intros. simpl in H1. assert (H0bis:=H0). apply lift_inv_plus in H0bis. destruct H0bis as [? [? [? []]]].
+    assert (t0bis:=t0). apply lift_inv_plus in t0bis. destruct t0bis as [? [? [? []]]].
+    apply UInj in c0. symmetry in e0. rewrite e0 in c0. rewrite c0 in l3.  apply TermLiftingCumul with (1:=t1) (2:= l4) in l3.
+    apply typing_defeq_inv in l3. destruct l3 as [? []]. 
+    eapply IHt with (1:= H) (2:= t3) in H1. destruct H1 as [? [? [? [? [? [? []]]]]]].
+    eexists projT5. eexists projT6. eexists projT7.
+    constructor. auto.
+    constructor. rewrite e. auto.
+    constructor. auto.
+    constructor. eapply TermConv. instantiate (1:= U l2). eapply TermTrans. instantiate (1:= cLift l l2 t).
+    rewrite c0. auto. auto. rewrite e. auto using TypeSym. auto.
+Qed. 
 
 
-Lemma inf_right_max {k l}:
-    l < Nat.max k l.
-Proof.
-Admitted.
-
-Lemma inf_left_max {k l}:
-    k < Nat.max k l.
-Proof.
-Admitted.
-
-Lemma sup_max {k l n}:
-    k < n ->
-    l < n ->
-    Nat.max k l < n.
-Proof.
-Admitted.
-
-Lemma sup_right_min {k l}:
-    Nat.min k l < l.
-Proof.
-Admitted.
-
-Lemma sup_left_min {k l}:
-    Nat.min k l < k.
-Proof.
-Admitted.
-
-Lemma inf_min {k l n}:
-    n < k ->
-    n < l ->
-    n < Nat.min k l.
-Proof.
-Admitted.
 
 (* -------- Lemme principal ------- *)
 
@@ -949,9 +1022,7 @@ induction 1. (* Induction on A *)
             ++ apply TypeDecodeCong. apply TermSym. auto. 
 
     + simpl in H0. apply TypeSym. apply erase_decode_inv_univ. apply wfTypeDecode. auto. auto.
-    + shelve.   (* TODO : subst_ty ? => enlever parce que de toute façon implicite... *)
-    + shelve. (*TODO : weak_ty ? *)
-
+    
 (* Terms *)
 - induction u0.
     + intros; destruct u1. (* u0 = var_term n *)
@@ -982,28 +1053,6 @@ induction 1. (* Induction on A *)
             apply subject_red in H1. apply lift_inv_plus in H0; destruct H0 as [? [? [? []]]]. apply lift_inv_plus in H1; destruct H1 as [? [? [? []]]].
             symmetry in e; symmetry in e0; rewrite e in c; rewrite e0 in c0. apply TypeSym in c0. apply TypeTrans with (1:= c) in c0.
             auto using TypeSym. auto.
-        
-        
-        (* simpl in H1. apply inr. apply lift_inv_plus in H0; destruct H0 as [? [? [? []]]]. apply erase_inj_term with (1:= H) (2:=t) in H1.
-            destruct H1.  (*TODO : Probleme, utilisation de erase_inj_term invalide... faut faire un lemme extérieur avec induction sur u1 *)
-
-                (* First case of HI *)
-                +++ destruct p. eexists; instantiate (1:= l). eexists; instantiate (1:= projT3). eexists; instantiate (1:= l).
-                        eexists; instantiate (1:=var_term n). eexists; instantiate (1:=u1). constructor; constructor; constructor; constructor.
-                        apply TypeSym; auto. auto. eapply TermConv. instantiate (1:=U l). apply TermLiftingSameConv. eapply wfTermConv. instantiate (1:= A0).
-                        auto. auto. apply TypeSym; auto. rewrite e. constructor. eapply wfTermConv. instantiate (1:= U projT3).
-                        constructor. auto. rewrite e in l1; auto. apply TypeSym; auto. eapply TermConv. instantiate (1:= A0). auto. auto.
-                
-                (* Second case of HI *)
-                +++ destruct s as [? [? [? [? [? [ ? [? [ ? []]]]]]]]]. apply UInj in c1. symmetry in c1; rewrite c1 in c3.
-                    eexists; instantiate (1:= projT4). eexists; instantiate (1:=l0). eexists; instantiate (1:= projT6). eexists; instantiate (1:=projT7).
-                    eexists; instantiate (1:= projT8). constructor; constructor; constructor; constructor. apply TypeSym; auto. rewrite e; auto.
-                    apply TermSym; auto. eapply TermTrans. instantiate (1:= cLift l l0 (cLift projT6 l projT8)). eapply TermConv. instantiate (1:= U l0).
-                    apply TermLiftingCong. auto. auto. apply TypeSym; rewrite e; auto. eapply TermConv. instantiate (1:= U l0). apply TermLiftingCumul.
-                    apply typing_defeq_inv in c3. destruct c3 as [? [?]]. apply lift_inv in t1; destruct t1 as [? [?]]. auto. 
-                    apply typing_defeq_inv in c3. destruct c3 as [? [?]]. apply lift_inv in t1; destruct t1 as [? [?]]. auto.
-                    auto. rewrite e; apply TypeSym; auto. auto.
-            *)
     
     (* u0 = Lambda *)
     + intros. destruct u1.
@@ -1059,11 +1108,14 @@ induction 1. (* Induction on A *)
 
         ++ simpl in H1. assert (Hbis := H); apply app_inv in Hbis; destruct Hbis as [? [? []]]; destruct p.
          assert (cbis := c); apply wfTermConv with (1:=H) in c. eapply erase_app_inv with (1:=c) (2:= H0) in H1.
-         apply TypeSym in cbis; apply TermConv with (1:= H1) in cbis. apply inl; constructor. all: auto.
+         apply TypeSym in cbis; apply TermConv with (1:= H1) in cbis.  apply inl; constructor.
+         
+         all: try(instantiate (1:=App t t0 u0_1 u0_2)); auto. (*TODO : corriger après lemme erase_cApp_inv*)
+
          apply subject_red in cbis. assert (Hbis := H0). apply lift_inv_plus in H0; destruct H0 as [? [? [? []]]].
          apply lift_inv_plus in cbis; destruct cbis as [? [? [? []]]]. symmetry in e; symmetry in e0; rewrite e in c0; rewrite e0 in c1. apply TypeSym in c1. apply TypeTrans with (1:= c0) in c1.
-            auto using TypeSym. auto.
-         
+         auto using TypeSym. auto. 
+        
     
     (* u0 = cProd *)
     + intros. destruct u1.
@@ -1201,7 +1253,10 @@ induction 1. (* Induction on A *)
         
         ++ simpl in H1. assert (Hbis := H). apply code_prod_inv_plus in Hbis; destruct Hbis as [? [? [? []]]]. apply wfTermConv with (1:=H) in c.
             apply inl. eapply erase_cprod_inv with (1:= c) (2:= H0) in H1.
-            all: auto. constructor. assert (Hbis := H). apply code_prod_inv_plus in Hbis; destruct Hbis as [? [? [? []]]].
+
+            all: auto. (* TODO : Corriger après lemme erase_cProd_inv *)
+            
+            constructor. assert (Hbis := H). apply code_prod_inv_plus in Hbis; destruct Hbis as [? [? [? []]]].
             eapply TermConv. instantiate (1:= U projT3 ). all : auto using TypeSym.
             apply subject_red in H1. assert (Hbis := H0). apply lift_inv_plus in H0; destruct H0 as [? [? [? []]]].
             apply wfTermConv with (1:= Hbis) in c1. apply code_prod_inv_plus in c. destruct c as [? [? [? []]]].
@@ -1228,14 +1283,32 @@ induction 1. (* Induction on A *)
         apply TermRefl. constructor. apply inv_wfcontext_typing in H. destruct H. auto.
         apply inf_min. auto. rewrite H3; auto.
 
-        ++ simpl in H1. set (k:= Nat.min l0 l1). assert (Hbis:=H). apply code_univ_inv_bis in Hbis. assert (H0bis:=H0). apply lift_inv_plus in H0bis. destruct Hbis. destruct H0bis as [? [? [? []]]].
-        apply erase_cuniv_inv with (1:=H) (2:=H0) in H1. destruct H1.
-        apply inr. eexists l0. eexists l2. eexists k. eexists (cU l k). eexists u1.
-        constructor. auto. constructor. rewrite e. auto. constructor.
-        apply TermSym. eapply TermConv. instantiate (1:= U l0).
-        apply TermLiftingUnivConv. apply inv_wfcontext_typing in H. destruct H. auto.
-        apply inf_min. auto. auto. apply sup_left_min. auto using TypeSym.
-        constructor. 
-        
+        ++ simpl in H1. apply inr. eexists l0; eexists l2. apply erase_cuniv_inv.
+            auto. auto. auto.
+    
+    + intros. assert (Hbis:= H). apply lift_inv_plus in Hbis. destruct Hbis as [? [? [? []]]].
+        apply IHu0 with (1:=t) (2:=H0) in H1. destruct H1.
+        ++ destruct p. symmetry in e. rewrite e in c. apply TypeSym in c1. apply inr.
+            eexists l0. eexists l. eexists l. eexists u0. eexists u0.
+            constructor; auto.
+            constructor; auto.
+            constructor. apply TermRefl. auto.
+            constructor. shelve. (* TODO : Besoin de la règle lift same ??? Elle est admissible car vraie sur les
+                                    code univ et propage à travers les constructeurs ? *)
+            apply TermRefl. auto.
+     
+        ++ destruct s as [? [? [? [? [? [? [? [? []]]]]]]]]. apply inr. apply UInj in c0. symmetry in e; rewrite e in c.
+            eexists l0. eexists projT5. eexists projT6. eexists projT7. eexists projT8.
+            constructor. auto.
+            constructor. auto.
+            constructor. assert (l1bis:=l1). apply TermLiftingCong with (1:= c2) in l1bis.
+            eapply TermConv. instantiate (1:= U l0).
+            eapply TermTrans. instantiate (1:= cLift l l0 (cLift projT6 projT4 projT7)). 
+            auto. rewrite c0. apply TermLiftingCumul. apply typing_defeq_inv in c4. destruct c4 as [? []].
+            auto. apply typing_defeq_inv in c2. destruct c2 as [? []]. apply lift_inv_plus in t1. destruct t1 as [? [? [? []]]].
+            auto. rewrite c0 in l1. auto. auto using TypeSym.
+            constructor. auto.
+            auto.
 
-        (*TODO : on veut l < l1 puisque r_U l = erase_term u1 ...*)
+    
+Qed.
