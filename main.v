@@ -899,7 +899,7 @@ Proof.
         constructor. auto. constructor. auto. constructor. auto. auto.   
 Qed.
 
-(*
+
 (* Fonction auxiliaire pour appliquer n fois l'affaiblissement *)
  Fixpoint iter_weak (n : nat) (A : ty) : ty :=
   match n with
@@ -934,32 +934,13 @@ Proof.
   - destruct n.
     + simpl in x. symmetry in x. rewrite x. simpl. destruct Δ0.
         * discriminate.
-        * simpl in x. destruct Δ0. simpl in x0. inversion x0. simpl. simpl in IHTypingDecl.
-    + injection HeqTerm. intros; subst.
-      (* Δ0 ne peut pas être vide car length  = S n0 *)
-      destruct Δ0; simpl in Hlen; try discriminate.
-      injection Hlen. intros Hlen'.
-      simpl in HeqCtx. injection HeqCtx. intros HeqCtx' HeqHead. subst.
-      
-      (* Appel récursif de l'HI sur le contexte Γ (qui est Γ'0 dans la dérivation) *)
-      (* On a [Γ |- var n0 : B] *)
-      (* On veut prouver [Γ,, T_head |- weak B = iter_weak (S (S n0)) A0] *)
-      
-      simpl. (* iter_weak (S (S n0)) A0 = weak (iter_weak (S n0) A0) *)
-      
-      apply weak_cong. 
-      eapply IHTypingDecl.
-      * reflexivity.
-      * reflexivity. (* Γ = Δ0 ++ A0 :: Γ'0 *)
-      * exact Hlen'.
+        * simpl in x. destruct Δ0. simpl in x0. inversion x0. simpl. 
+        specialize (IHTypingDecl ε Γ'0 A0). simpl in IHTypingDecl. rewrite H2 in IHTypingDecl. specialize (IHTypingDecl JMeq_refl eq_refl).
+        eapply weak_cong in IHTypingDecl. exact IHTypingDecl. simpl in x. contradict x. auto.
 
-  (* 4. Cas Conv : conversion de type *)
-  - (* H : [Γ |- t : A], H0 : [Γ |- A = B] *)
-    eapply TypeTrans. [cite_start](* [cite: 44] *)
-    + apply TypeSym. exact H0. [cite_start](* [cite: 45] *)
-    + eapply IHTypingDecl; eauto.
+    + 
 Qed.
-*)
+
 
 Lemma var_inv Γ :
     forall n A,
@@ -1671,9 +1652,10 @@ induction 1. (* Induction on A *)
                     apply lift_inv in t8. destruct t8 as [? []].  eapply conv_hypothesis_typing.
                     instantiate (1:=Decode projT7 projT8). auto. eapply TypeTrans. instantiate (1:= Decode n0 u0_1).
                     rewrite c6 in l1. apply TypeSym in l1. auto. apply TypeDecodeCong. rewrite c6 in c8. auto. 
-                     assert (c8bis:=c8). apply typing_defeq_inv in c8bis. destruct c8bis as [? []].
-                    a pply lift_inv in t10. destruct t10 as [? []]. apply sup_max. auto. auto.
-                    aply TermSym. apply TermLiftingProdConv.
+                    assert (c8bis:=c8). apply typing_defeq_inv in c8bis. destruct c8bis as [? []].
+                    apply lift_inv in t8. destruct t8 as [? []]. auto. assert (c13bis:=c13). apply typing_defeq_inv in c13bis. destruct c13bis as [? []].
+                    apply lift_inv in t8. destruct t8 as [? []].  auto.
+                    apply TermSym. apply TermLiftingProdConv.
                     assert (c8bis:=c8). apply typing_defeq_inv in c8bis. destruct c8bis as [? []]. apply lift_inv in t8. destruct t8 as [? []].
                     constructor. auto. apply inf_right_max.
                     assert (c13bis:=c13). apply typing_defeq_inv in c13bis. destruct c13bis as [? []]. apply lift_inv in t8. destruct t8 as [? []].
