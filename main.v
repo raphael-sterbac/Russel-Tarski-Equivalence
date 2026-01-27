@@ -822,8 +822,7 @@ Proof.
     + simpl. exact Heq.
     + reflexivity.
     + exact Hconv.
-
-Admitted. 
+Admitted.  (* Decreasing argument *)
 
 
 
@@ -1339,8 +1338,11 @@ Lemma simplify_induction {Γ A0 A1 l0 l1 k v0 v1 u0 u1}:
     [Γ |- A0 = A1] ->
     [Γ |- u0 = u1 : A0].
 Proof.
-    intros.
-Admitted.
+    intros. apply TypeSym in H. apply TypeTrans with (1:=H) in H4. apply TypeSym in H0, H4. apply TypeTrans with (1:=H0) in H4. apply UInj in H4. subst.
+    apply TypeSym in H. apply TypeTrans with (1:=H) in H0. apply TypeSym in H0. apply TermConv with (1:= H2) in H0.
+    eapply TermLiftingCong in H3. eapply TermTrans. exact H1. eapply TermTrans. eapply TermConv. exact H3. auto using TypeSym. auto using TermSym.
+    apply typing_defeq_inv in H0. destruct H0 as [? []]. apply lift_inv_plus in t0. destruct t0 as [? [? [? []]]]. auto. 
+Qed.
 
 Lemma simplify_induction_grouped {Γ A0 A1 u0 u1}:
     (∑ l0 l1 k v0 v1, [Γ |- A0 = U l0] 
@@ -1821,7 +1823,7 @@ induction 1. (* Induction on A *)
                     eapply conv_hypothesis_term_eq. instantiate (1:= t1). apply TermSym. apply TermConv with (1:= c4). all: auto using TypeSym.
                     eapply TypeTrans. instantiate (1:= Prod t t0). auto. apply TypeSym. eapply TypeTrans. instantiate (1:= Prod t1 t2). auto.
                     apply TypePiCong. all: auto using TypeSym.
-                    (* TODO : Utiliser le lemme simplify_induction pour simplifier la preuve... *)
+                    (* Utiliser simplify_induction pour simplifier la preuve ?*)
 
         ++ simpl in H1. assert (Hbis := H). apply lambda_inv in Hbis; destruct Hbis. apply wfTermConv with (1:=H) in c.
             apply inl. eapply erase_lambda_inv with (1:= c) (2:= H0) in H1.
@@ -1994,7 +1996,7 @@ induction 1. (* Induction on A *)
         ++ simpl in H1. assert (Hbis := H). apply code_prod_inv_plus in Hbis; destruct Hbis as [? [? [? []]]]. apply wfTermConv with (1:=H) in c.
             apply inl. eapply erase_cprod_inv with (1:= c) (2:= H0) in H1.
 
-            all: auto. (* TODO : Corriger après lemme erase_cProd_inv *)
+            all: auto. (* Corriger après lemme erase_cProd_inv *)
             
             constructor. assert (Hbis := H). apply code_prod_inv_plus in Hbis; destruct Hbis as [? [? [? []]]].
             eapply TermConv. instantiate (1:= U projT3 ). all : auto using TypeSym.
@@ -2047,7 +2049,7 @@ induction 1. (* Induction on A *)
             constructor. auto.
             auto.
 
-Admitted. (* TODO : Decreasing argument *)
+Admitted. (* Decreasing argument *)
 
 Lemma erase_inj_term_plus {u0}:
     forall Γ u1 A0 A1,
@@ -2057,57 +2059,204 @@ Lemma erase_inj_term_plus {u0}:
     (erase_ty A0 = erase_ty A1) ->
     ([Γ |- u0 = u1 : A0] × [Γ |- A0 = A1]).
 Proof.
-Admitted.
+    intros. apply erase_inj_term with (1:=H) (2:=H0) in H1. apply wftype_typing_inv in H, H0. destruct H, H0. apply erase_inj_ty with (1:= w) (2:=w0) in H2.
+    destruct H1.
+    - auto.
+    - apply simplify_induction_grouped. auto. auto. 
+Qed.
+
+Theorem erase_inj_ctx_mutual :
+  (forall Γ (H:[|- Γ]), forall Γ', [|- Γ'] -> erase_context Γ = erase_context Γ' -> True) *
+  ((forall Γ A (H:[Γ |- A]), forall Γ', [|- Γ'] -> erase_context Γ = erase_context Γ' -> [Γ' |- A]) *
+  ((forall Γ a A (H:[Γ |- a : A]), forall Γ', [|- Γ'] -> erase_context Γ = erase_context Γ' -> [Γ' |- a : A]) *
+  ((forall Γ A B (H:[Γ |- A = B]), forall Γ', [|- Γ'] -> erase_context Γ = erase_context Γ' -> [Γ' |- A = B]) *
+  (forall Γ a b A (H:[Γ |- a = b : A]), forall Γ', [|- Γ'] -> erase_context Γ = erase_context Γ' -> [Γ' |- a = b : A])))).
+Proof.
+  apply mut_ind_erasure_rect; intros.
+  
+  all: try match goal with H : erase_context _ = erase_context _ |- _ => rename H into Heq end.
+  all: try match goal with H : [ |- _ ] |- _ => rename H into HwfG' end.
+
+  (* --- Cas WfContextDecl --- *)
+  - (* connil *) trivial.
+  - (* concons *)
+    destruct Γ' as [|A' Γ']; simpl in Heq; try discriminate.
+    injection Heq; intros HeqA HeqG.
+    inversion HwfG'.
+    apply H with (1:=H3) (2:=HeqA).
+
+  (* --- Cas WfTypeDecl --- *)
+  - (* wfTypeU *) constructor; auto.
+  - (* wfTypeProd : Extension de contexte *)
+    apply wfTypeProd.
+    + apply H; auto. (* A *)
+    + apply H0.      (* B dans Γ,,A *)
+      * constructor. apply HwfG'. apply H; auto. (* Preuve que Γ',,A' est bien formé *)
+      * simpl. rewrite Heq. reflexivity.
+  - (* wfTypeDecode *) constructor. apply H; auto.
+
+  (* --- Cas TypingDecl --- *)
+  - (* wfVar0 : Cas spécial avec conversion *)
+    destruct Γ' as [|A' Γ']; simpl in Heq; try discriminate.
+    injection Heq; intros HeqA HeqG.
+    inversion HwfG'.
+    (* On prouve que A et A' sont convertibles via erase_inj_ty *)
+    assert (Heq_types: [Γ' |- A = A']).
+    { apply erase_inj_ty. apply H with (1:=H2); auto. auto. auto. }
+    (* On construit la dérivation : var 0 a le type weak A', on le convertit en weak A *)
+    eapply wfTermConv.
+    + apply wfVar0. exact H3.
+    + apply TypeSym. apply weak_cong. exact Heq_types.
+
+  - (* wfVarN : Il faut déstructurer le contexte Γ' *)
+    destruct Γ' as [|A' Γ']; simpl in Heq; try discriminate.
+    injection Heq; intros HeqA HeqG.
+    inversion HwfG'.
+    apply wfVarN.
+    + exact H4.
+    + apply H0; auto. (* Appel récursif sur la queue *)
+
+    - (* wfTermcProd : Extension de contexte *)
+    apply wfTermcProd.
+    + apply H; auto.
+    + apply H0; auto.
+    + apply H1.
+      * constructor. apply HwfG'. apply wfTypeDecode. apply H; auto.
+      * simpl. rewrite Heq. auto.
+
+    - econstructor. eauto. eauto.
+    - econstructor. eauto. eauto.
+
+  - (* wfTermLambda : Extension de contexte *)
+    apply wfTermLambda.
+    + apply H; auto.
+    + apply H0.
+      * constructor. apply HwfG'. apply H; auto.
+      * simpl. rewrite Heq. reflexivity.
+
+    - econstructor. eauto. eauto.
+  - econstructor. eauto. eauto.
+  - econstructor. eauto. eauto.
+    assert (Heq' : erase_context (Γ,,A) = erase_context (Γ',,A)).
+    {simpl. rewrite Heq. auto. }
+    apply H1. econstructor. eauto. eauto. eauto.
+
+  - econstructor. eauto.
+  - econstructor. eauto. eauto.
+  - econstructor. eauto. eauto.
+
+  - (* TypeDecodeProdConv : Extension de contexte *)
+    apply TypeDecodeProdConv.
+    + apply H; auto.
+    + apply H0.
+      * constructor. apply HwfG'. apply wfTypeDecode. apply H; auto.
+      * simpl. rewrite Heq. auto.
+
+  - econstructor. eauto.
+  - econstructor. eauto. eauto.
+  - apply TypeSym. eauto.
+
+  - (* TermBRed : Extension de contexte *)
+    eapply TermBRed.
+    + apply H; auto.
+    + apply H0.
+      * constructor. apply HwfG'. apply H; auto.
+      * simpl. rewrite Heq. reflexivity.
+    + apply H1; auto.
+
+  (* --- Cas ConvTermDecl --- *)
+  - (* TermPiCong : Extension de contexte *)
+    apply TermPiCong.
+    + apply H; auto.
+    + apply H0; auto.
+    + apply H1.
+      * constructor. apply HwfG'. apply wfTypeDecode. apply H; auto.
+      * simpl. rewrite Heq. auto.
+
+  - econstructor. eauto. apply H0. econstructor. eauto. eapply type_defeq_inv. apply TypeSym. eapply H.
+    eauto. eauto. simpl. rewrite Heq. eauto. eauto. eauto.
+
+  - (* TermLambdaCong : Extension de contexte *)
+    apply TermLambdaCong.
+    + apply H; auto.
+    + apply H0; auto.
+    + apply H1.
+      * constructor. apply HwfG'. apply H; auto.
+      * simpl. rewrite Heq. reflexivity.
+    + apply H2.
+      * constructor. apply HwfG'. apply H; auto.
+      * simpl. rewrite Heq. reflexivity.
+
+  - (* TermLiftingProdConv : Extension de contexte *)
+    apply TermLiftingProdConv; auto.
+    + apply H0; auto. constructor. auto. constructor. auto. simpl. rewrite Heq. auto.
+  
+  - econstructor. all: try(eauto).
+  - econstructor. all: try(eauto).
+  - econstructor. all: try(eauto).
+  - econstructor. all: try(eauto).
+  - econstructor. all: try(eauto).
+  - econstructor. all: try(eauto).
+  - econstructor. apply TermSym. eauto. apply TypeRefl. apply H in HwfG'. apply typing_defeq_inv in HwfG'. destruct HwfG' as [? []].
+    apply wftype_typing_inv in t1. destruct t1. eauto. eauto.
+  - eapply TermTrans. eauto. eauto. 
+Qed.
 
 Lemma erase_inj_ctx_term {Γ} :
     forall Γ',
     [ |- Γ] ->
     [ |- Γ'] ->
     (erase_context Γ = erase_context Γ') ->
-    (forall a A, [Γ |- a : A] -> [Γ' |- a : A])
-with erase_inj_ctx_type {Γ} :
+    (forall a A, [Γ |- a : A] -> [Γ' |- a : A]).
+Proof.
+  intros Γ' HwfG HwfG' Heq a A Htyp.
+  eapply (fst (snd (snd erase_inj_ctx_mutual))).
+  - exact Htyp.
+  - exact HwfG'.
+  - exact Heq.
+Qed.
+
+Lemma erase_inj_ctx_type {Γ} :
     forall Γ',
     [ |- Γ] ->
     [ |- Γ'] ->
     (erase_context Γ = erase_context Γ') ->
-    (forall A, [Γ |- A] -> [Γ' |- A])
-with erase_inj_ctx_conv_ty {Γ} :
+    (forall A, [Γ |- A] -> [Γ' |- A]).
+Proof.
+  intros Γ' HwfG HwfG' Heq A Htyp.
+  eapply (fst (snd erase_inj_ctx_mutual)).
+  - exact Htyp.
+  - exact HwfG'.
+  - exact Heq.
+Qed.
+
+Lemma erase_inj_ctx_conv_ty {Γ} :
     forall Γ',
     [ |- Γ] ->
     [ |- Γ'] ->
     (erase_context Γ = erase_context Γ') ->
-    (forall A B, [Γ |- A = B] -> [Γ' |- A = B])
-with erase_inj_ctx_conv_term {Γ} :
+    (forall A B, [Γ |- A = B] -> [Γ' |- A = B]).
+Proof.
+  intros Γ' HwfG HwfG' Heq A B Hconv.
+  eapply (fst (snd (snd (snd erase_inj_ctx_mutual)))).
+  - exact Hconv.
+  - exact HwfG'.
+  - exact Heq.
+Qed.
+
+Lemma erase_inj_ctx_conv_term {Γ} :
     forall Γ',
     [ |- Γ] ->
     [ |- Γ'] ->
     (erase_context Γ = erase_context Γ') ->
     (forall u v A, [Γ |- u = v : A ] -> [Γ' |- u = v : A ]).
 Proof.
-(*     induction Γ.
-    - intros. destruct Γ'.
-        +  constructor. auto. auto.
-        + simpl in H1. contradict H1. congruence.
-    - intros. destruct Γ'.
-        + simpl in H1. contradict H1. congruence.
-        + simpl in H1. inversion H1. inversion H. inversion H0. assert (IHbis:=IHΓ). specialize (IHbis Γ' H6 H10 H4).
-        destruct IHbis. apply w in H7. eapply erase_inj_ty with (1:=H7) (2:=H11) in H3.
-            constructor. intros. eapply conv_hypothesis_typing. instantiate (1:= a).
-             dependent induction H12.
-             ++  constructor. auto.
-             ++ constructor. auto. apply t0 in H12. auto.
-             ++ apply wfTermcProd.    *)
-
-(* - intros. induction H2.
-    + destruct Γ'.  simpl in H1. contradict H1. congruence.
-        simpl in H1. inversion H1. inversion H. inversion H0.
-        specialize (erase_inj_ctx_type Γ Γ' H6 H10 H4). apply erase_inj_ctx_type in w. apply erase_inj_ty with (1:=w) (2:=H11) in H3.
-        eapply conv_hypothesis_typing. instantiate (1:=A). eapply wfVar0. auto. auto.
-    + destruct Γ'.  simpl in H1. contradict H1. congruence.
-        simpl in H1. inversion H1. inversion H. inversion H0.
-        specialize (erase_inj_ctx_type Γ Γ' H7 H11 H5). apply erase_inj_ctx_type in w. apply erase_inj_ty with (1:=w) (2:=H12) in H4.
-        eapply conv_hypothesis_typing. instantiate (1:=A). eapply wfVarN. auto.  *)
-Admitted.
+  intros Γ' HwfG HwfG' Heq u v A Hconv.
+  eapply (snd (snd (snd (snd erase_inj_ctx_mutual)))).
+  - exact Hconv.
+  - exact HwfG'.
+  - exact Heq.
+Qed.
 
 
 Lemma var_from_russ {Γ n B B1 Γ1}:
@@ -2117,8 +2266,40 @@ Lemma var_from_russ {Γ n B B1 Γ1}:
     (erase_context Γ1 = Γ) ->
     [Γ1 |- var_term n : B1].
 Proof.
+    (*TODO : vérifier et prouver*)
 Admitted.
 
+
+Lemma decode_prod_structure_from_erasure:
+  forall t Γ l A B,
+  [Γ |- t : U l] ->
+  erase_term t = r_Prod A B ->
+  ∑  A1 B1,
+    [Γ |- Decode l t = Prod A1 B1] ×
+    erase_ty A1 = A ×
+    erase_ty B1 = B.
+Proof.
+  induction t; intros; simpl in H0; try discriminate.
+  (* Cas cProd *)
+  - injection H0; intros; subst.
+    apply code_prod_inv in H. destruct H as [? [? ?]]. subst.
+    eexists (Decode l0 t1), (Decode l0 t2).
+    split.
+    + apply TypeDecodeProdConv; auto.
+    + simpl. split; auto.
+  (* Cas cLift : on traverse les lifts *)
+  - apply lift_inv in H. destruct H as [? [? ?]]. subst.
+    specialize (IHt _ _ _ _  t0 H0).
+    destruct IHt as [A1 [B1 [Heq [HA HB]]]].
+    exists A1, B1.
+    split.
+    + eapply TypeTrans. 
+      2: exact Heq.
+      apply TypeSym. apply TypeDecodeLiftConv; auto.
+    + split; auto.
+Qed.
+
+(* ----- Principal théorème d'équivalence ----- *)
 Theorem section_ctx {Γ} :
     [ |-r Γ] ->
     (∑ Γ1,
@@ -2140,7 +2321,6 @@ with section_conv_term {Γ u v A} :
     (∑ Γ1 u1 v1 A1,
     [Γ1 |- u1 = v1 : A1] × (erase_ty A1 = A) × (erase_term u1 = u) × (erase_term v1 = v) × (erase_context Γ1 = Γ)).
 Proof.
-
 - intros. induction H.
     + eexists ε. constructor. constructor. simpl. auto.
     + destruct IHRuss_WfContextDecl as [? []]. apply section_ty in r. destruct r as [? [? [? []]]].
@@ -2206,7 +2386,7 @@ Proof.
       ** (* Effacement du contexte *)
         exact H_erase_ctx_A.
 
-        (* Cas r_App *)
+    (* Cas r_App *)
     + destruct IHruss_termpingDecl1 as [Γ_f [f_t [Prod_t [Hf_typ [H_er_Prod [H_er_f H_er_ctx_f]]]]]].
       destruct IHruss_termpingDecl2 as [Γ_a [a_t [A_t [Ha_typ [H_er_A [H_er_a H_er_ctx_a]]]]]].
       
@@ -2214,14 +2394,41 @@ Proof.
          f a pour type (Prod A B) en Russell. Cela implique [Γ,,A |-r B]. *)
       (* On admet ici le lemme d'inversion sur le typage Russell pour récupérer B, 
          ou on utilise le fait que section_ty existe pour tout type bien formé. *)
-      assert (H_russ_B : [Γ ,,r A |-r B]). { 
-          (* TODO: inversion du typage de f *) admit.  
+        assert (H_russ_B : [Γ ,,r A |-r B]). 
+      { 
+          (* On part de la preuve Tarski Hf_typ : [Γ_f |- f_t : Prod_t] *)
+          apply wftype_typing_inv in Hf_typ. destruct Hf_typ as [_ Hwf_Prod_t].
+          
+          (* On analyse Prod_t dont l'effacement est r_Prod A B *)
+          destruct Prod_t.
+          - (* Cas 1 : Prod_t est syntaxiquement un Prod A0 B0 *)
+            simpl in H_er_Prod. injection H_er_Prod. intros HeqB HeqA.
+            (* On inverse le typage du produit dans Tarski *)
+            apply prod_ty_inv in Hwf_Prod_t. destruct Hwf_Prod_t as [_ Hwf_B0].
+            (* On applique la correction de l'effacement pour revenir à Russell *)
+            apply erasure_correction_wf_ty in Hwf_B0.
+            (* On aligne les termes effacés : erase(B0) = B, erase(Γ_f) = Γ, erase(A0) = A *)
+            simpl in Hwf_B0. rewrite HeqB HeqA H_er_ctx_f in Hwf_B0.
+            exact Hwf_B0.
+            
+          - (* Cas 2 : Prod_t est un Decode (via un code qui s'efface en r_Prod) *)
+            simpl in H_er_Prod.
+            apply decode_ty_inv in Hwf_Prod_t.
+            (* On utilise le lemme de structure sur l'effacement du code *)
+            apply decode_prod_structure_from_erasure with (A:=A) (B:=B) in Hwf_Prod_t; auto.
+            destruct Hwf_Prod_t as [A1 [B1 [Heq_Decode [HeqA HeqB]]]].
+            (* L'égalité Decode = Prod implique que Prod est bien formé *)
+            apply type_defeq_inv in Heq_Decode. destruct Heq_Decode as [_ [_ Hwf_Prod]].
+            apply prod_ty_inv in Hwf_Prod. destruct Hwf_Prod as [_ Hwf_B1].
+            (* Retour à Russell *)
+            apply erasure_correction_wf_ty in Hwf_B1.
+            simpl in Hwf_B1. rewrite HeqB HeqA H_er_ctx_f in Hwf_B1.
+            exact Hwf_B1.
+            
+          - (* Cas 3 : Prod_t est U n (impossible par effacement) *)
+            simpl in H_er_Prod. discriminate.
       }
       apply section_ty in H_russ_B. destruct H_russ_B as [Γ_B [B_t [H_wf_B [H_er_B H_er_ctx_B]]]].
-
-      (* Alignement des contextes : on se place dans Γ_f *)
-      (* On admet l'alignement strict pour simplifier ici (sinon rewrite contexte) *)
-      assert (Heq_ctxs : Γ_f = Γ_a). { admit. } subst Γ_a.
 
       (* Construction du terme App *)
       eexists Γ_f.
@@ -2239,18 +2446,25 @@ Proof.
                   ----- (* Prod A_t B_t bien formé *) 
                         apply wfTypeProd.
                         ------ (* A_t bien formé *) apply wftype_typing_inv in Ha_typ. destruct Ha_typ; auto.
+                            eapply erase_inj_ctx_type. apply inv_wfcontext_wftype in w. destruct w. exact w0.
+                            apply inv_wfcontext_typing in Hf_typ. destruct Hf_typ. auto. rewrite H_er_ctx_f. auto.
+                            auto.
                         ------ (* B_t bien formé dans Γ_f,,A_t *)
                                (* Il faut transporter B_t de Γ_B vers Γ_f,,A_t *)
                                eapply erase_inj_ctx_type.
                                ------- apply inv_wfcontext_wftype in H_wf_B. destruct H_wf_B; exact w0.
                                ------- apply concons. apply inv_wfcontext_typing in Hf_typ. destruct Hf_typ; auto.
                                        apply wftype_typing_inv in Ha_typ. destruct Ha_typ; auto.
+                                       eapply erase_inj_ctx_type. apply inv_wfcontext_wftype in w. destruct w. exact w0.
+                                        apply inv_wfcontext_typing in Hf_typ. destruct Hf_typ. auto. rewrite H_er_ctx_f. auto.
+                                        auto.  
                                ------- simpl. rewrite H_er_ctx_f H_er_A. rewrite <- H_er_ctx_B. reflexivity.
                                ------- exact H_wf_B.
                   ----- (* Egalité des effacements *)
                         simpl. rewrite H_er_Prod. rewrite H_er_A H_er_B. reflexivity.
-         --- (* a doit avoir le type A_t *)
-             exact Ha_typ.
+         --- eapply erase_inj_ctx_term. apply inv_wfcontext_typing in Ha_typ. destruct Ha_typ. exact w.
+            apply inv_wfcontext_typing in Hf_typ. destruct Hf_typ. auto. rewrite H_er_ctx_f. auto.
+            auto.
       -- (* Effacement du type de retour *)
          rewrite <- defeq_erase_subst_ty. rewrite H_er_a H_er_B. reflexivity.
       -- (* Effacement du terme *)
@@ -2523,38 +2737,101 @@ Proof.
     * simpl. rewrite HeA' HeB' Heu. reflexivity.
     * exact HeG1.
 
-    (* Cas r_TermPiCong*)
-    +
+    (* Cas r_TermPiCong *)
+    + destruct IHRuss_ConvTermDecl1 as [Γ1 [u1 [v1 [T1 [Hconv1 [HeqT1 [Hequ1 [Heqv1 HeqG1]]]]]]]].
+      destruct IHRuss_ConvTermDecl2 as [Γ2 [u2 [v2 [T2 [Hconv2 [HeqT2 [Hequ2 [Heqv2 HeqG2]]]]]]]].
+
+      eexists Γ1, (cProd n u1 u2), (cProd n v1 v2), (U n).
+      repeat split.
+      * apply TermPiCong.
+        
+        (* 1. Well-formation: [Γ1 |- u1 : U n] *)
+        -- eapply wfTermConv.
+           --- apply typing_defeq_inv in Hconv1. destruct Hconv1 as [_ [Htyp _]]. exact Htyp.
+           --- apply erase_inj_ty.
+               ++ apply typing_defeq_inv in Hconv1. destruct Hconv1 as [_ [Htyp _]]. 
+                 apply wftype_typing_inv in Htyp. destruct Htyp. exact w.
+               ++ apply wfTypeU. apply typing_defeq_inv in Hconv1. 
+                 destruct Hconv1 as [_ [Htyp _]]. apply inv_wfcontext_typing in Htyp. 
+                 destruct Htyp. exact w.
+               ++ rewrite HeqT1. simpl. reflexivity.
+
+        (* 2. Equality LHS: [Γ1 |- u1 = v1 : U n] *)
+        -- eapply TermConv. exact Hconv1.
+           apply erase_inj_ty.
+           --- apply typing_defeq_inv in Hconv1. destruct Hconv1 as [_ [Htyp _]]. 
+               apply wftype_typing_inv in Htyp. destruct Htyp. exact w.
+           --- apply wfTypeU. apply typing_defeq_inv in Hconv1. 
+               destruct Hconv1 as [_ [Htyp _]]. apply inv_wfcontext_typing in Htyp. 
+               destruct Htyp. exact w.
+           --- rewrite HeqT1. simpl. reflexivity.
+
+        (* 3. Equality RHS: [Γ1,, Decode n u1 |- u2 = v2 : U n] *)
+        -- eapply erase_inj_ctx_conv_term.
+           (* Target context well-formedness *)
+           --- eapply concons.
+               ++ apply typing_defeq_inv in Hconv1. destruct Hconv1 as [_ [Htyp _]]. 
+                 apply inv_wfcontext_typing in Htyp. destruct Htyp. exact w.
+               ++ eapply wfTypeDecode. eapply wfTermConv.
+                 ** apply typing_defeq_inv in Hconv1. destruct Hconv1 as [_ [Htyp _]]. exact Htyp.
+                 ** apply erase_inj_ty.
+                    +++ apply typing_defeq_inv in Hconv1. destruct Hconv1 as [_ [Htyp _]]. 
+                        apply wftype_typing_inv in Htyp. destruct Htyp. exact w.
+                    +++ apply wfTypeU. apply typing_defeq_inv in Hconv1. 
+                        destruct Hconv1 as [_ [Htyp _]]. apply inv_wfcontext_typing in Htyp. 
+                        destruct Htyp. exact w.
+                    +++ rewrite HeqT1. simpl. reflexivity.
+           (* Source context well-formedness *)
+           --- apply typing_defeq_inv in Hconv2. destruct Hconv2 as [_ [Htyp _]]. 
+               apply inv_wfcontext_typing in Htyp. destruct Htyp. constructor. eapply inv_wfcontext_typing.
+               eapply typing_defeq_inv. exact Hconv1. constructor. eapply typing_defeq_inv. apply TermSym.
+               eapply TermConv. exact Hconv1. apply erase_inj_ty. eapply wftype_typing_inv. eapply typing_defeq_inv.
+               exact Hconv1. constructor. eapply inv_wfcontext_typing. eapply typing_defeq_inv. exact Hconv1. simpl. auto.
+           --- simpl. rewrite HeqG1 Hequ1. rewrite <- HeqG2. reflexivity.
+           (* Term equality with type conversion to U n *)
+           --- eapply TermConv. eapply erase_inj_ctx_conv_term. apply typing_defeq_inv in Hconv2. destruct Hconv2 as [? []].
+                apply inv_wfcontext_typing in t. destruct t. exact w. constructor. apply typing_defeq_inv in Hconv1. destruct Hconv1 as [? []].
+                apply inv_wfcontext_typing in t. destruct t. exact w. constructor. apply typing_defeq_inv in Hconv1. destruct Hconv1 as [? []].
+                eapply wfTermConv. exact t. apply erase_inj_ty. apply wftype_typing_inv in t. destruct t. auto. constructor. apply inv_wfcontext_typing in t.
+                destruct t. auto. simpl. auto. simpl. rewrite HeqG1. rewrite Hequ1. auto. exact Hconv2.
+               apply erase_inj_ty.
+               ++ apply typing_defeq_inv in Hconv2. destruct Hconv2 as [_ [Htyp _]]. 
+                 apply wftype_typing_inv in Htyp. destruct Htyp. apply wftype_typing_inv in t. destruct t. eapply erase_inj_ctx_type.
+                 apply inv_wfcontext_typing in t. destruct t. exact w1. constructor.  apply typing_defeq_inv in Hconv1. destruct Hconv1 as [? []].
+                apply inv_wfcontext_typing in t0. destruct t0. auto. constructor. apply typing_defeq_inv in Hconv1. destruct Hconv1 as [? []].
+                eapply wfTermConv. exact t0. apply erase_inj_ty. apply wftype_typing_inv in t0. destruct t0. auto. constructor. apply inv_wfcontext_typing in t0.
+                destruct t0. auto. simpl. auto. simpl. rewrite HeqG1. rewrite Hequ1. auto. exact w0.
+               ++ apply wfTypeU. apply typing_defeq_inv in Hconv2. 
+                 destruct Hconv2 as [_ [Htyp _]]. apply inv_wfcontext_typing in Htyp. 
+                 destruct Htyp.  constructor.  apply typing_defeq_inv in Hconv1. destruct Hconv1 as [? []].
+                apply inv_wfcontext_typing in t0. destruct t0. auto. constructor. apply typing_defeq_inv in Hconv1. destruct Hconv1 as [? []].
+                eapply wfTermConv. exact t0. apply erase_inj_ty. apply wftype_typing_inv in t0. destruct t0. auto. constructor. apply inv_wfcontext_typing in t0.
+                destruct t0. auto. simpl. auto.
+               ++ rewrite HeqT2. simpl. reflexivity.
+
+      * simpl. subst. auto.
+      * simpl. subst. auto.
+      * simpl. subst. auto.
 
     (* 4. Cas r_TermFunEta *)
     + apply section_term in r.
       destruct r as [Γ1 [f1 [Prod1 [Htyp_f [HeProd [Hef HeG1]]]]]].
       
-      (* Prod1 s'efface en r_Prod A B. Cela implique que Prod1 est convertible à un Prod A1 B1 *)
-      (* On construit ce témoin de conversion *)
+      (* Prod1 s'efface en r_Prod A B. *)
+      (* On utilise le lemme auxiliaire ou l'analyse de cas pour prouver la conversion *)
       assert (∑ A1 B1, [Γ1 |- Prod1 = Prod A1 B1] × (erase_ty A1 = A) × (erase_ty B1 = B)).
       { 
           destruct Prod1; simpl in HeProd; try discriminate.
           - (* Cas où Prod1 est syntaxiquement un Prod *)
-            exists Prod1_1, Prod1_2. split. 
+            exists Prod1_1, Prod1_2.
+            split; [| split]. 
             apply TypeRefl. apply wftype_typing_inv in Htyp_f. destruct Htyp_f; auto.
-            injection HeProd; auto. intros. constructor. auto. auto.
+            injection HeProd; auto. injection HeProd; auto.
           - (* Cas où Prod1 est un Decode *)
-            (* On admet ici l'inversion du typage Russell pour récupérer A1 et B1 bien formés *)
-            (* C'est nécessaire car on n'a pas accès direct aux preuves de formation de A et B ici *)
-            assert (∑ A1 B1, [Γ1 |- Prod A1 B1] × erase_ty A1 = A × erase_ty B1 = B). 
-            { admit. } 
-            
-            destruct H as [A1 [B1 [Hwf [HA HB]]]].
-            exists A1, B1. split.
-            + (* Preuve de Decode l t = Prod A1 B1 via le lemme d'inversion d'effacement *)
-              apply TypeSym. apply erase_decode_inv_prod. 
-              * apply wftype_typing_inv in Htyp_f. destruct Htyp_f; auto.
-              * exact Hwf.
-              * intros. apply erase_inj_ty; auto.
-              * intros. apply erase_inj_ty; auto.
-              * simpl. rewrite HA HB. auto.
-            + constructor. auto. auto.
+            (* Utilisation du lemme decode_prod_structure_from_erasure *)
+            apply wftype_typing_inv in Htyp_f. destruct Htyp_f as [_ Hwf].
+            apply decode_ty_inv in Hwf.
+            apply decode_prod_structure_from_erasure with (A:=A) (B:=B) in Hwf; auto.
       }
       
       destruct H as [A1 [B1 [Hconv [HeA HeB]]]].
@@ -2571,6 +2848,7 @@ Proof.
         rewrite HeA HeB Hef. reflexivity.
       * exact Hef.
       * exact HeG1.
+
 
     (* 5. Cas r_TermRefl *)
     + apply section_term in r. destruct r as [Γ1 [t1 [A1 [Htyp [HeA [Het HeG]]]]]].
@@ -2645,4 +2923,4 @@ Proof.
     * simpl. auto.
     * simpl. auto.
     * simpl. auto.
-Qed.
+Admitted. (* Decreasing argument *)
