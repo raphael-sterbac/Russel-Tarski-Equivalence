@@ -1,4 +1,7 @@
-From Stdlib Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+From Coq Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+Require Import RussellTarskiEquivalence.core.
+Require Import RussellTarskiEquivalence.unscoped.
+Require Import RussellTarskiEquivalence.Autosubst.
 Require Import RussellTarskiEquivalence.Syntax.
 
 
@@ -32,13 +35,12 @@ with WfTypeDecl  : ctx -> ty -> Type :=
 with TypingDecl : ctx -> term -> ty -> Type :=
      | wfVar0 {Γ} {A} :
         [ Γ |- A ] ->
-        [ Γ,, A|- var_term 0 : (weak_ty A) ]
+        [ Γ,, A|- var_term 0 : A⟨↑⟩ ]
     | wfVarN {Γ} {n A B} :
         [Γ |- A] ->
         [Γ |- var_term n : B] ->
-        [Γ ,, A |- (var_term (n+1)) : (weak_ty B)]
+        [Γ ,, A |- var_term (S n) : B⟨↑⟩ ]
     
-    (* | weakening_var {Γ A B n} : [Γ |- var_term n : A] -> [Γ |- B] -> [Γ ,, B |- var_term n : A] *)
     | wfTermcProd {Γ} {a b l} :
         [Γ |- a : U l] ->
         [Γ |- Decode l a] ->
@@ -59,7 +61,7 @@ with TypingDecl : ctx -> term -> ty -> Type :=
     | wfTermApp {Γ} {f a A B} :
         [ Γ |- f : Prod A B ] -> 
         [ Γ |- a : A ] -> 
-        [ Γ |- App A B f a : subst_ty a B ]
+        [ Γ |- App A B f a : B[a..] ]
     | wfTermConv {Γ} {t A B} :
         [ Γ |- t : A ] -> 
         [ Γ |- A = B ] -> 
@@ -102,7 +104,7 @@ with ConvTermDecl : ctx -> term -> term -> ty -> Type :=
             [ Γ |- A ] ->
             [ Γ ,, A |- t : B ] ->
             [ Γ |- a : A ] ->
-            [ Γ |- App A B (Lambda A B t) a = (subst_term a t) : subst_ty a B ]
+            [ Γ |- App A B (Lambda A B t) a = t[a..] : B[a..] ]
     | TermPiCong {Γ} {A B C D n} :
         [ Γ |- A : U n] ->
         [ Γ |- A = B : U n ] ->
@@ -113,7 +115,7 @@ with ConvTermDecl : ctx -> term -> term -> ty -> Type :=
         [ Γ,,A |- B = B'] ->
         [ Γ |- f = g : Prod A B ] ->
         [ Γ |- a = b : A ] ->
-        [ Γ |- App A B f a = App A' B' g b : subst_ty a B ]
+        [ Γ |- App A B f a = App A' B' g b : B[a..] ]
     | TermLambdaCong {Γ} {t u A A' B' B} :
         [ Γ |- A ] ->
         [ Γ |- A = A' ] ->
@@ -144,7 +146,7 @@ with ConvTermDecl : ctx -> term -> term -> ty -> Type :=
         [Γ |- u = cLift l l u : U l]
     | TermFunEta {Γ} {f A B} :
         [ Γ |- f : Prod A B ] ->
-        [ Γ |- Lambda A B (App (weak_ty A) (weak_ty B) (weak_term f) (var_term 0)) = f : Prod A B ]
+        [ Γ |- Lambda A B (App A⟨↑⟩ B⟨⇑⟩ f⟨↑⟩ (var_term 0)) = f : Prod A B ]
     | TermRefl {Γ} {t A} :
         [ Γ |- t : A ] -> 
         [ Γ |- t = t : A ]
@@ -160,19 +162,19 @@ with ConvTermDecl : ctx -> term -> term -> ty -> Type :=
         [ Γ |- t' = t'' : A ] ->
         [ Γ |- t = t'' : A ]
 
-    
 where "[ Γ |- T ]" := (WfTypeDecl Γ T)
 and   "[ Γ |- t : T ]" := (TypingDecl Γ t T)
 and   "[ Γ |- A = B ]" := (ConvTypeDecl Γ A B)
 and   "[ Γ |- t = t' : T ]" := (ConvTermDecl Γ t t' T)
 and   "[ |- Γ ]" := (WfContextDecl Γ).
 
+
 (* ----- Russel Universes ----- *)
 
 Definition russ_ctx := list russ_term.
 
 Notation "'εr'" := (@nil russ_term).
-Notation " Γ ,,r A " := (@cons russ_term A Γ) (at level 20, A at next level). 
+Notation " Γ ,,r A " := (@cons russ_term A Γ) (at level 20, A at next level).
 
 Reserved Notation "[ |-r Γ ]"  (at level 0, Γ at level 50).
 Reserved Notation "[ Γ |-r t : A ]" (at level 0, Γ, t, A at level 50).
@@ -198,13 +200,12 @@ with Russ_WfTypeDecl  : russ_ctx -> russ_term -> Type :=
 with Russ_TypingDecl : russ_ctx -> russ_term -> russ_term -> Type :=
     | r_wfVar0 {Γ} {A} :
         [ Γ |-r A ] ->
-        [ Γ,,r A |-r r_var_term 0 : (r_weak_term A) ]
+        [ Γ,,r A |-r r_var_term 0 : A⟨↑⟩ ]
     | r_wfVarN {Γ} {n A B} :
         [Γ |-r A] ->
         [Γ |-r r_var_term n : B] ->
-        [Γ ,,r A |-r (r_var_term (n+1)) : (r_weak_term B)]
+        [Γ ,,r A |-r r_var_term (S n) : B⟨↑⟩ ]
 
-    (* | r_weakening_var {Γ A B n} : [Γ |- var_term n : A] -> [Γ |- B] -> [Γ ,, B |- var_term n : A] *)
     | r_wfTermLambda {Γ} {A B t} :
         [ Γ |-r A ] ->        
         [ Γ ,,r A |-r t : B ] -> 
@@ -212,7 +213,7 @@ with Russ_TypingDecl : russ_ctx -> russ_term -> russ_term -> Type :=
     | r_wfTermApp {Γ} {f a A B} :
         [ Γ |-r f : r_Prod A B ] -> 
         [ Γ |-r a : A ] -> 
-        [ Γ |-r r_App A B f a : r_subst_term a B ]
+        [ Γ |-r r_App A B f a : B[a..] ]
     | r_wfTermConv {Γ} {t A B} :
         [ Γ |-r t : A ] -> 
         [ Γ |-r A = B ] -> 
@@ -255,13 +256,13 @@ with Russ_ConvTermDecl : russ_ctx -> russ_term -> russ_term -> russ_term -> Type
             [ Γ |-r A ] ->
             [ Γ ,,r A |-r t : B ] ->
             [ Γ |-r a : A ] ->
-            [ Γ |-r r_App A B (r_Lambda A B t) a = r_subst_term a t : r_subst_term a B ]
+            [ Γ |-r r_App A B (r_Lambda A B t) a = t[a..] : B[a..] ]
     | r_TermAppCong {Γ} {a b f g A B A' B'} :
         [ Γ |-r A = A'] ->
         [ Γ,,r A |-r B = B'] ->
         [ Γ |-r f = g : r_Prod A B ] ->
         [ Γ |-r a = b : A] ->
-        [ Γ |-r r_App A B f a = r_App A' B' g b : r_subst_term a B ]
+        [ Γ |-r r_App A B f a = r_App A' B' g b : B[a..] ]
     | r_TermLambdaCong {Γ}  {t u A A' B' B} :
         [ Γ |-r A ] ->
         [ Γ |-r A = A' ] ->
@@ -275,7 +276,7 @@ with Russ_ConvTermDecl : russ_ctx -> russ_term -> russ_term -> russ_term -> Type
         [ Γ |-r r_Prod A C = r_Prod B D : r_U n]
     | r_TermFunEta {Γ} {f A B} :
         [ Γ |-r f : r_Prod A B ] ->
-        [ Γ |-r r_Lambda A B (r_App (r_weak_term A) (r_weak_term B) (r_weak_term f) (r_var_term 0)) = f : r_Prod A B ]
+        [ Γ |-r r_Lambda A B (r_App A⟨↑⟩ B⟨⇑⟩ f⟨↑⟩ (r_var_term 0)) = f : r_Prod A B ]
     | r_TermRefl {Γ} {t A} :
         [ Γ |-r t : A ] -> 
         [ Γ |-r t = t : A ]

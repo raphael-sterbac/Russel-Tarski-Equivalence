@@ -1,4 +1,7 @@
 -Q . RussellTarskiEquivalence
+core.v
+unscoped.v
+Autosubst.v
 Syntax.v
 Typing.v
 Utils.v

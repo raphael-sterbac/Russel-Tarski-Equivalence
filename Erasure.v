@@ -1,4 +1,7 @@
-From Stdlib Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+From Coq Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+Require Import RussellTarskiEquivalence.core.
+Require Import RussellTarskiEquivalence.unscoped.
+Require Import RussellTarskiEquivalence.Autosubst.
 Require Import RussellTarskiEquivalence.Syntax.
 Require Import RussellTarskiEquivalence.Typing.
 Require Import RussellTarskiEquivalence.Utils.
@@ -30,105 +33,100 @@ Fixpoint erase_context (Γ : ctx): russ_ctx :=
 
 Scheme ty_rect_mut_erase := Induction for ty Sort Type
 with term_rect_mut_erase := Induction for term Sort Type.
-
 Combined Scheme mut_ind_ty_term_erase from ty_rect_mut_erase, term_rect_mut_erase.
 
-Lemma defeq_erase_weak_mutual :
-  (forall A, r_weak_term (erase_ty A) = erase_ty (weak_ty A)) *
-  (forall t, r_weak_term (erase_term t) = erase_term (weak_term t)).
+Lemma erase_ren_mutual :
+  (forall A xi, (erase_ty A)⟨xi⟩ = erase_ty A⟨xi⟩) *
+  (forall t xi, (erase_term t)⟨xi⟩ = erase_term t⟨xi⟩).
 Proof.
-  apply mut_ind_ty_term_erase; intros.
-  
-  - rewrite <- weak_ty_prod. simpl. 
-    rewrite r_weak_term_Prod.
-    rewrite H H0. auto.
-  - rewrite weak_ty_Decode. simpl.
-    rewrite H. auto.
-  - rewrite weak_ty_U. simpl. 
-    apply r_weak_term_U.
-  
-
-  - rewrite weak_term_var. simpl. 
-    apply defeq_weak_var.
-  - rewrite weak_term_Lambda. simpl.
-    rewrite r_weak_term_Lambda.
-    rewrite H H0 H1. auto.
-  - rewrite weak_term_App. simpl.
-    rewrite r_weak_term_App.
-    rewrite H H0 H1 H2. auto.
-  - rewrite weak_term_cProd. simpl.
-    rewrite r_weak_term_Prod.
-    rewrite H H0. auto.
-  - rewrite weak_term_cU. simpl. 
-    apply r_weak_term_U.
-  - rewrite weak_term_cLift. simpl.
-    apply H.
+  apply mut_ind_ty_term_erase; intros; cbn.
+  - f_equal.
+    + exact (H xi).
+    + exact (H0 (upRen_term_term xi)).
+  - exact (H xi).
+  - reflexivity.
+  - reflexivity.
+  - f_equal.
+    + exact (H xi).
+    + exact (H0 (upRen_term_term xi)).
+    + exact (H1 (upRen_term_term xi)).
+  - f_equal.
+    + exact (H xi).
+    + exact (H0 (upRen_term_term xi)).
+    + exact (H1 xi).
+    + exact (H2 xi).
+  - f_equal.
+    + exact (H xi).
+    + exact (H0 (upRen_term_term xi)).
+  - reflexivity.
+  - exact (H xi).
 Qed.
 
-Lemma defeq_erase_weak_ty : forall {A}, r_weak_term (erase_ty A) = erase_ty (weak_ty A).
+Lemma defeq_erase_weak_ty : forall {A}, (erase_ty A)⟨↑⟩ = erase_ty A⟨↑⟩.
+Proof. intros. apply (fst erase_ren_mutual). Qed.
+
+Lemma defeq_erase_weak_ty_up : forall {A}, (erase_ty A)⟨⇑⟩ = erase_ty A⟨⇑⟩.
+Proof. intros. apply (fst erase_ren_mutual). Qed.
+
+Lemma defeq_erase_weak_term : forall {t}, (erase_term t)⟨↑⟩ = erase_term t⟨↑⟩.
+Proof. intros. apply (snd erase_ren_mutual). Qed.
+
+
+Lemma up_erase_term_pointwise sigma x :
+  up_russ_term_russ_term (sigma >> erase_term) x = erase_term (up_term_term sigma x).
 Proof.
-  intros A. apply (fst defeq_erase_weak_mutual).
+  destruct x as [|n].
+  - reflexivity.
+  - cbn. apply (snd erase_ren_mutual).
 Qed.
 
-Lemma defeq_erase_weak_term : forall {t}, r_weak_term (erase_term t) = erase_term (weak_term t).
+Lemma erase_subst_mutual :
+  (forall A sigma, (erase_ty A)[sigma >> erase_term] = erase_ty A[sigma]) *
+  (forall t sigma, (erase_term t)[sigma >> erase_term] = erase_term t[sigma]).
 Proof.
-  intros t. apply (snd defeq_erase_weak_mutual).
+  apply mut_ind_ty_term_erase; intros; 
+    unfold subst1, Subst_ty, Subst_term, Subst_russ_term in *; cbn.
+  - f_equal.
+    + exact (H sigma).
+    + rewrite <- (H0 (up_term_term sigma)).
+      apply ext_russ_term. apply up_erase_term_pointwise.
+  - exact (H sigma).
+  - reflexivity.
+  - reflexivity.
+  - f_equal.
+    + exact (H sigma).
+    + rewrite <- (H0 (up_term_term sigma)).
+      apply ext_russ_term. apply up_erase_term_pointwise.
+    + rewrite <- (H1 (up_term_term sigma)).
+      apply ext_russ_term. apply up_erase_term_pointwise.
+  - f_equal.
+    + exact (H sigma).
+    + rewrite <- (H0 (up_term_term sigma)).
+      apply ext_russ_term. apply up_erase_term_pointwise.
+    + exact (H1 sigma).
+    + exact (H2 sigma).
+  - f_equal.
+    + exact (H sigma).
+    + rewrite <- (H0 (up_term_term sigma)).
+      apply ext_russ_term. apply up_erase_term_pointwise.
+  - reflexivity.
+  - exact (H sigma).
 Qed.
 
-Lemma defeq_erase_subst_mutual :
-  (forall A a, r_subst_term (erase_term a) (erase_ty A) = erase_ty (subst_ty a A)) *
-  (forall t a, r_subst_term (erase_term a) (erase_term t) = erase_term (subst_term a t)).
-Proof.
-  apply mut_ind_ty_term_erase; intros.
-  
-  - rewrite subst_ty_Prod. simpl. 
-    rewrite r_subst_term_Prod.
-    rewrite H. 
-    rewrite defeq_erase_weak_term. 
-    rewrite H0. 
-    reflexivity.
-  - rewrite subst_ty_Decode. simpl.
-    rewrite H. reflexivity.
-  - rewrite subst_ty_U. simpl. 
-    apply r_subst_term_U.
-  
-  - destruct n.
-    + rewrite subst_term_var_0. simpl. 
-      rewrite r_subst_term_var_0. reflexivity.
-    + rewrite subst_term_var_S. simpl. 
-      rewrite r_subst_term_var_S. reflexivity.
-  - rewrite subst_term_Lambda. simpl.
-    rewrite r_subst_term_Lambda.
-    rewrite H.
-    rewrite defeq_erase_weak_term.
-    rewrite H0 H1.
-    reflexivity.
-  - rewrite subst_term_App. simpl.
-    rewrite r_subst_term_App.
-    rewrite H H1 H2.
-    rewrite defeq_erase_weak_term.
-    rewrite H0.
-    reflexivity.
-  - rewrite subst_term_cProd. simpl.
-    rewrite r_subst_term_Prod.
-    rewrite H.
-    rewrite defeq_erase_weak_term.
-    rewrite H0.
-    reflexivity.
-  - rewrite subst_term_cU. simpl. 
-    apply r_subst_term_U.
-  - rewrite subst_term_cLift. simpl.
-    apply H.
+Lemma defeq_erase_subst_ty : forall {a A}, (erase_ty A)[(erase_term a) ..] = erase_ty A[a..].
+Proof. 
+  intros a A. 
+  rewrite <- (fst erase_subst_mutual A (a..)).
+  apply ext_russ_term.
+  intros [|x]; reflexivity.
 Qed.
 
-Lemma defeq_erase_subst_ty : forall {a A}, r_subst_term (erase_term a) (erase_ty A) = erase_ty (subst_ty a A).
-Proof.
-  intros a A. apply (fst defeq_erase_subst_mutual).
-Qed.
-
-Lemma defeq_erase_subst_term : forall {a t}, r_subst_term (erase_term a) (erase_term t) = erase_term (subst_term a t).
-Proof.
-  intros a t. apply (snd defeq_erase_subst_mutual).
+Lemma defeq_erase_subst_term : forall {a t}, (erase_term t)[(erase_term a) ..] = erase_term t[a..].
+Proof. 
+  intros a t.
+  rewrite <- (snd erase_subst_mutual t (a..)).
+  apply ext_russ_term.
+  intros [|x]; reflexivity.
 Qed.
 
 (* Correction of erasure  *)
@@ -206,8 +204,9 @@ Proof.
     + eapply r_TermUnivCumul. simpl in H. exact H. lia.
   - intros. simpl. apply r_TermRefl. auto.
   - intros. simpl. 
-    rewrite <- defeq_erase_weak_term.  
-    rewrite <- defeq_erase_weak_ty. rewrite <- defeq_erase_weak_ty.
+    rewrite <- defeq_erase_weak_term.
+    rewrite <- defeq_erase_weak_ty. 
+    rewrite <- defeq_erase_weak_ty_up.
     apply r_TermFunEta. assumption.
   - intros. simpl. apply r_TermRefl. assumption.
   - intros. simpl. eapply r_ConvConv; eauto.

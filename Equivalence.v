@@ -1,4 +1,7 @@
-From Stdlib Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+From Coq Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+Require Import RussellTarskiEquivalence.core.
+Require Import RussellTarskiEquivalence.unscoped.
+Require Import RussellTarskiEquivalence.Autosubst.
 Require Import RussellTarskiEquivalence.Syntax.
 Require Import RussellTarskiEquivalence.Typing.
 Require Import RussellTarskiEquivalence.Utils.
@@ -299,7 +302,7 @@ Proof.
                 ** exact Heq_a_conv.
              ++ apply TypeSym. exact Heq_A0_subst.
           -- eapply TypeTrans. exact Heq_A0_subst.
-             eapply TypeTrans. instantiate (1 := subst_ty t4 t2).
+             eapply TypeTrans. instantiate (1 := t2[t4..]).
              ++ eapply subst_cong. exact HeqB. exact Heq_a_conv.
              ++ apply TypeSym. exact Heq_A1_subst.
 
@@ -315,7 +318,7 @@ Proof.
                 ** exact Heq_a_conv.
              ++ apply TypeSym. exact Heq_A0_subst.
           -- eapply TypeTrans. exact Heq_A0_subst.
-             eapply TypeTrans. instantiate (1 := subst_ty t4 t2).
+             eapply TypeTrans. instantiate (1 := t2[t4..]).
              ++ eapply subst_cong. exact HeqB. exact Heq_a_conv.
              ++ apply TypeSym. exact Heq_A1_subst.
 
@@ -508,8 +511,7 @@ Proof.
 
         destruct (lt_eq_lt_dec ka kb) as [[H_ka_lt_kb | H_ka_eq_kb] | H_kb_lt_ka].
         
-        ++ (* ka < kb *)
-           apply inr. eexists l_, l_t, kb.
+        ++ apply inr. eexists l_, l_t, kb.
            eexists (cProd kb (cLift ka kb va) vb), (cProd kb (cLift ka kb va') vb').
            
            assert (H_dec_kb : [Γ |- Decode l_ a = Decode kb (cLift ka kb va)]).
@@ -531,8 +533,7 @@ Proof.
            repeat split.
            -- exact H_A0_Ul.
            -- exact H_A1_Ult.
-           -- (* cProd l_ a b = cLift kb l_ (cProd kb (cLift ka kb va) vb) *)
-              eapply TermConv. instantiate (1:= U l_).
+           -- eapply TermConv. instantiate (1:= U l_).
               eapply TermTrans. 
               ** eapply TermPiCong. exact H_a_Ul. 
                  *** eapply TermTrans. exact H_a_lift. apply TermSym. eapply TermLiftingCumul. exact H_va_U. instantiate(1:=kb). lia. exact H_kb_l.
@@ -542,8 +543,7 @@ Proof.
                  *** eapply conv_hypothesis_typing. exact H_vb_U. exact H_dec_kb.
                  *** exact H_kb_l.
               ** apply TypeSym. exact H_A0_Ul.
-           -- (* t1 = cLift kb l_t (cProd kb (cLift ka kb va') vb') *)
-              eapply TermConv. instantiate (1:= U l_t).
+           -- eapply TermConv. instantiate (1:= U l_t).
               eapply TermTrans. 
               ** eapply TermPiCong. exact H_t1_Ult.
                  *** eapply TermTrans. exact H_t1_lift. apply TermSym. eapply TermLiftingCumul. exact H_va'_U. instantiate(1:=kb). lia. exact H_kb_lt.
@@ -554,14 +554,12 @@ Proof.
                      eapply conv_hypothesis_typing. exact H_vb'_U. exact H_dec_eq.
                  *** exact H_kb_lt.
               ** apply TypeSym. exact H_A1_Ult.
-           -- (* v0 = v1 : U kb *)
-              apply TermPiCong. 
+           -- apply TermPiCong. 
               ** apply wfTermcLift. exact H_va_U. lia.
               ** apply TermLiftingCong. exact H_va_eq. lia.
               ** eapply conv_hypothesis_term_eq. exact H_vb_eq. exact H_dec_kb.
 
-        ++ (* ka = kb *)
-           subst kb. apply inr. eexists l_, l_t, ka.
+        ++ subst kb. apply inr. eexists l_, l_t, ka.
            eexists (cProd ka va vb), (cProd ka va' vb').
 
            assert (H_dec_ka : [Γ |- Decode l_ a = Decode ka va]).
@@ -579,16 +577,14 @@ Proof.
            repeat split.
            -- exact H_A0_Ul.
            -- exact H_A1_Ult.
-           -- (* cProd l_ a b = cLift ka l_ (cProd ka va vb) *)
-              eapply TermConv. instantiate (1:= U l_).
+           -- eapply TermConv. instantiate (1:= U l_).
               eapply TermTrans. 
               ** eapply TermPiCong. exact H_a_Ul. exact H_a_lift. exact H_b_lift.
               ** apply TermSym. apply TermLiftingProdConv. exact H_va_U.
                  eapply conv_hypothesis_typing. exact H_vb_U. exact H_dec_ka.
                  exact H_ka_l.
               ** apply TypeSym. exact H_A0_Ul.
-           -- (* t1 = cLift ka l_t (cProd ka va' vb') *)
-              eapply TermConv. instantiate (1:= U l_t).
+           -- eapply TermConv. instantiate (1:= U l_t).
               eapply TermTrans. 
               ** eapply TermPiCong. exact H_t1_Ult. exact H_t1_lift. 
                  eapply conv_hypothesis_term_eq. exact H_t2_lift. exact H_dec_eq.
@@ -597,8 +593,7 @@ Proof.
                  eapply conv_hypothesis_typing. exact H_vb'_U. exact H_dec_eq.
                  exact H_ka_lt.
               ** apply TypeSym. exact H_A1_Ult.
-           -- (* v0 = v1 : U ka *)
-              apply TermPiCong. exact H_va_U. exact H_va_eq.
+           -- apply TermPiCong. exact H_va_U. exact H_va_eq.
               eapply conv_hypothesis_term_eq. exact H_vb_eq. exact H_dec_ka.
 
         ++ (* kb < ka *)
@@ -620,8 +615,7 @@ Proof.
            repeat split.
            -- exact H_A0_Ul.
            -- exact H_A1_Ult.
-           -- (* cProd l_ a b = cLift ka l_ (cProd ka va (cLift kb ka vb)) *)
-              eapply TermConv. instantiate (1:= U l_).
+           -- eapply TermConv. instantiate (1:= U l_).
               eapply TermTrans. 
               ** eapply TermPiCong. exact H_a_Ul. exact H_a_lift.
                  *** eapply TermTrans. exact H_b_lift. apply TermSym. eapply TermLiftingCumul. exact H_vb_U. instantiate(1:=ka). lia. exact H_ka_l.
@@ -629,8 +623,7 @@ Proof.
                  apply wfTermcLift. eapply conv_hypothesis_typing. exact H_vb_U. exact H_dec_ka.
                  lia. exact H_ka_l.
               ** apply TypeSym. exact H_A0_Ul.
-           -- (* t1 = cLift ka l_t (cProd ka va' (cLift kb ka vb')) *)
-              eapply TermConv. instantiate (1:= U l_t).
+           -- eapply TermConv. instantiate (1:= U l_t).
               eapply TermTrans. 
               ** eapply TermPiCong. exact H_t1_Ult. exact H_t1_lift.
                  *** eapply TermTrans. eapply conv_hypothesis_term_eq. exact H_t2_lift. exact H_dec_eq.
@@ -641,8 +634,7 @@ Proof.
                  eapply conv_hypothesis_typing. exact H_vb'_U. exact H_dec_eq.
                  lia. exact H_ka_lt.
               ** apply TypeSym. exact H_A1_Ult.
-           -- (* v0 = v1 : U ka *)
-              apply TermPiCong. exact H_va_U. exact H_va_eq.
+           -- apply TermPiCong. exact H_va_U. exact H_va_eq.
               apply TermLiftingCong. eapply conv_hypothesis_term_eq. exact H_vb_eq. exact H_dec_ka.
               lia.
 
@@ -1408,18 +1400,18 @@ Proof.
 - intros. induction H.
 
     (* r_var0 *)
-    + apply  section_ty in r. destruct r as [projT3 [projT4 [? []]]]. eexists (projT3,,projT4). eexists (var_term 0). eexists (weak_ty projT4).
+    + apply  section_ty in r. destruct r as [projT3 [projT4 [? []]]]. eexists (projT3,,projT4). eexists (var_term 0). eexists (projT4⟨↑⟩).
         constructor. eapply wfVar0. auto.
         constructor. symmetry in e. rewrite e. rewrite defeq_erase_weak_ty. auto.
         constructor. auto. simpl. rewrite e0. rewrite e. auto.
 
       (* r_VarN *)
     +  destruct IHRuss_TypingDecl as [projT3 [projT4 [projT5 [? [? []]]]]]. apply section_ty in r. destruct r as [projT6 [projT7 [? []]]]. eexists (projT3,,projT7).
-        eexists (weak_term projT4). eexists (weak_ty projT5).
+        eexists (projT4⟨↑⟩). eexists (projT5⟨↑⟩).
         constructor. eapply weak_term_lemma. auto.
         constructor. rewrite <- defeq_erase_weak_ty. rewrite e. auto.
         constructor. rewrite <- defeq_erase_weak_term. rewrite e0. auto. 
-        exact defeq_weak_var. simpl. rewrite e1. rewrite e2. auto. 
+        simpl. rewrite e1. rewrite e2. auto. 
 
     + (* r_Lambda *)
       destruct IHRuss_TypingDecl as [Γ_body [u_body [B_lifted [H_typing_body [H_erase_B [H_erase_u H_erase_ctx_body]]]]]].
@@ -1493,7 +1485,7 @@ Proof.
 
       eexists Γ_f.
       eexists (App A_t B_t f_t a_t).
-      eexists (subst_ty a_t B_t).
+      eexists (B_t[a_t..]).
 
       repeat split.
       -- apply wfTermApp.
@@ -1667,7 +1659,7 @@ Proof.
     apply section_term in r1. destruct r1 as [Γ2 [a1 [A1 [Htyp_a [HeA [Hea HeG2]]]]]].
     
     
-    eexists (Γ2), (App A1 B1 (Lambda A1 B1 t1) a1), (subst_term a1 t1), (subst_ty a1 B1).
+    eexists (Γ2), (App A1 B1 (Lambda A1 B1 t1) a1), (t1[a1..]), (B1[a1..]).
     repeat split.
     * eapply TermBRed.
         -- apply wftype_typing_inv in Htyp_a. destruct Htyp_a. auto.
@@ -1687,7 +1679,7 @@ Proof.
     destruct IHRuss_ConvTermDecl1 as [Γ3 [f1 [g1 [Prod1 [Hconv_f [HeProd [Hef [Heg HeG3]]]]]]]].
     destruct IHRuss_ConvTermDecl2 as [Γ4 [a1 [b1 [Ta1 [Hconv_a [HeTa [Hea [Heb HeG4]]]]]]]].
 
-    eexists Γ1, (App A1 B1 f1 a1), (App A'1 B'1 g1 b1), (subst_ty a1 B1).
+    eexists Γ1, (App A1 B1 f1 a1), (App A'1 B'1 g1 b1), (B1[a1..]).
     repeat split.
     * apply TermAppCong.
         -- exact HconvA.
@@ -1846,13 +1838,13 @@ Proof.
       
       destruct H as [A1 [B1 [Hconv [HeA HeB]]]].
 
-      eexists Γ1, (Lambda A1 B1 (App (weak_ty A1) (weak_ty B1) (weak_term f1) (var_term 0))), f1, (Prod A1 B1).
+      eexists Γ1, (Lambda A1 B1 (App (A1⟨↑⟩) (B1⟨⇑⟩) (f1⟨↑⟩) (var_term 0))), f1, (Prod A1 B1).
       repeat split.
       * apply TermFunEta. 
         eapply wfTermConv. exact Htyp_f. exact Hconv.
       * simpl. rewrite HeA HeB. reflexivity.
       * simpl. rewrite HeA HeB. rewrite <- defeq_erase_weak_term.
-        rewrite <- defeq_erase_weak_ty. rewrite <- defeq_erase_weak_ty. 
+        rewrite <- defeq_erase_weak_ty. rewrite <- defeq_erase_weak_ty_up. 
         rewrite HeA HeB Hef. reflexivity.
       * exact Hef.
       * exact HeG1.

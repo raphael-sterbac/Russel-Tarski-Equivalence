@@ -1,43 +1,15 @@
-From Stdlib Require Import ssreflect.
-From Stdlib Require Import Lia.
-Require Import Stdlib.Program.Equality.
-Require Import PeanoNat.
-Require Import Stdlib.Lists.List.
-Require Import Arith.
+From Coq.ssr Require Import ssreflect.
+From Coq.micromega Require Import Lia.
+Require Import Coq.Program.Equality.
+Require Import Coq.Arith.PeanoNat.
+Require Import Coq.Lists.List.
+Require Import Coq.Arith.Arith.
+Require Import RussellTarskiEquivalence.core.
+Require Import RussellTarskiEquivalence.unscoped.
+Require Import RussellTarskiEquivalence.Autosubst.
+
 
 Set Primitive Projections.
-
-Definition lvl := nat.
-
-Inductive ty : Type :=
-    | Prod : ty -> ty -> ty
-    | Decode : lvl -> term -> ty
-    | U : lvl -> ty
-with term : Type :=
-    | var_term : nat -> term
-    | Lambda : ty -> ty -> term -> term
-    | App : ty -> ty -> term -> term -> term
-    | cProd : lvl -> term -> term -> term
-    | cU : lvl -> lvl -> term
-    | cLift : lvl -> lvl -> term -> term.
-
-Inductive russ_term : Type :=
-    | r_var_term : nat -> russ_term
-    | r_Prod : russ_term -> russ_term -> russ_term
-    | r_U : lvl -> russ_term
-    | r_Lambda : russ_term -> russ_term -> russ_term -> russ_term
-    | r_App : russ_term -> russ_term -> russ_term -> russ_term -> russ_term.
-
-
-(* ----- Substitutions ----- *)
-Axiom subst_ty : term -> ty -> ty.
-Axiom weak_ty : ty -> ty.
-
-Axiom subst_term : term -> term -> term.
-Axiom weak_term : term -> term.
-
-Axiom r_subst_term : russ_term -> russ_term -> russ_term.
-Axiom r_weak_term : russ_term -> russ_term.
 
 (* ----- Contexts ----- *)
 
@@ -46,6 +18,41 @@ Definition ctx := list ty.
 Notation "'ε'" := (@nil ty).
 Notation " Γ ,, A " := (@cons ty A Γ) (at level 20, A at next level).
 
+Arguments funcomp {X Y Z}%_type_scope (g f)%_function_scope.
+
+Notation "f >> g" := (funcomp g f) (at level 50) : function_scope.
+
+Notation "s .: sigma" := (scons s sigma) (at level 55, sigma at next level, right associativity).
+
+Notation "s ⟨ xi1 ⟩" := (ren1 xi1 s) (at level 7, left associativity, format "s ⟨ xi1 ⟩").
+(* Notation "⟨ xi ⟩" := (ren1 xi) (at level 1, left associativity, format "⟨ xi ⟩") : function_scope. *)
+
+Notation "s [ sigma ]" := (subst1 sigma s) (at level 7, left associativity, format "s '/' [ sigma ]").
+
+Notation "s [ t ]⇑" := (subst_term (scons t (shift >> var_term)) s) (at level 7, left associativity, format "s '/' [ t ]⇑") .
+
+Notation "s '..'" := (scons s ids) (at level 1, format "s ..").
+
+Notation "↑" := (shift).
+Notation "⇑" := (up_ren shift).
+
+(* --- Substitution lemmas --- *)
+
+Lemma subst_up_var_0_ty : forall (B : ty),
+  B⟨⇑⟩[(var_term 0) ..] = B.
+Proof.
+  intros B. asimpl.
+  apply idSubst_ty.
+  intros [|x]; reflexivity.
+Qed.
+
+Lemma subst_up_var_0_russ : forall (B : russ_term),
+  B⟨⇑⟩[(r_var_term 0) ..] = B.
+Proof.
+  intros B. asimpl.
+  apply idSubst_russ_term.
+  intros [|x]; reflexivity.
+Qed.
 
 (* ----- Shortands for products and sum types ----- *)
 

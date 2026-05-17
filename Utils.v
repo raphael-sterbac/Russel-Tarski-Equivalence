@@ -1,118 +1,71 @@
-From Stdlib Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+From Coq Require Import ssreflect Lia Program.Equality PeanoNat Lists.List Arith.
+Require Import RussellTarskiEquivalence.core.
+Require Import RussellTarskiEquivalence.unscoped.
+Require Import RussellTarskiEquivalence.Autosubst.
 Require Import RussellTarskiEquivalence.Syntax.
 Require Import RussellTarskiEquivalence.Typing.
 
 
 (* --------- Axioms --------- *)
 
-(* --- Subtitution and weakenings (Should be provable using AutoSubst) --- *)
+(* --------- Axioms --------- *)
+
+(* --- Substitutions and weakenings --- *)
 
 Axiom substitution_lemma :
     forall {Γ A B a},
     [ Γ ,, A |- B ] ->
     [ Γ |- a : A ] ->
-    [ Γ |- subst_ty a B ].
+    [ Γ |- B[a..] ].
 
 Axiom substitution_lemma_term: forall {Γ A B a t},
     [ Γ ,, A |- t: B ] ->
     [ Γ |- a : A ] ->
-    [ Γ |- subst_term a t : subst_ty a B].
+    [ Γ |- t[a..] : B[a..]].
 
 Axiom r_substitution_lemma: forall {Γ a A B},
     [ Γ ,,r A |-r B ] ->
     [ Γ |-r a : A ] ->
-    [ Γ|-r r_subst_term a B ].
+    [ Γ |-r B[a..] ].
 
 Axiom r_substitution_lemma_term: forall {Γ a t A B},
     [ Γ ,,r A |-r t : B ] ->
     [ Γ |-r a : A ] ->
-    [ Γ |-r r_subst_term a t : r_subst_term a B ].
+    [ Γ |-r t[a..] : B[a..] ].
 
 Axiom subst_cong: forall {Γ A B B' a a'},
     [ Γ ,, A |- B = B' ] ->
     [ Γ |- a = a' : A ] ->
-    [ Γ |- subst_ty a B  = subst_ty a' B' ].
+    [ Γ |- B[a..] = B'[a'..] ].
 
 Axiom r_subst_cong: forall {Γ A B B' a a'},
     [ Γ ,,r A |-r B = B' ] ->
     [ Γ |-r a = a' : A ] ->
-    [ Γ |-r r_subst_term a B  = r_subst_term a' B' ].
+    [ Γ |-r B[a..] = B'[a'..] ].
 
 Axiom weak_lemma: forall {Γ A B},
     [ Γ |- A] ->
-    [ Γ,,A |- weak_ty B ].
+    [ Γ,,A |- B⟨↑⟩ ].
 
 Axiom r_weak_lemma: forall {Γ A B},
     [ Γ |-r A] ->
-    [ Γ,,r A |-r r_weak_term B ].
-
-Axiom r_weak_term_lemma : forall {Γ a A B},
-    [Γ |-r a : A] -> 
-    [Γ |-r B] -> 
-    [Γ,,r B |-r r_weak_term a : r_weak_term A].
+    [ Γ,,r A |-r B⟨↑⟩ ].
 
 Axiom weak_cong: forall {Γ A B C},
     [Γ |- A = B] ->
-    [Γ,, C |- weak_ty A = weak_ty B].
+    [Γ,, C |- A⟨↑⟩ = B⟨↑⟩].
+
+Axiom r_weak_cong: forall {Γ A B C},
+    [Γ |-r A = B] ->
+    [Γ,,r C |-r A⟨↑⟩ = B⟨↑⟩].
 
 Axiom weak_term_lemma: forall {Γ a A B},
     [Γ |- a : A] ->
-    [Γ,, B |- weak_term a : weak_ty A].
+    [Γ,, B |- a⟨↑⟩ : A⟨↑⟩].
 
-Axiom subst_var_0: forall {A},
-    subst_ty (var_term 0) (weak_ty A) = A.
-
-Axiom r_subst_var_0 : forall {B},
-    r_subst_term (r_var_term 0) (r_weak_term B) = B.
-
-Axiom defeq_weak_var: forall {n}, r_weak_term (r_var_term n) = r_var_term (n + 1). 
-
-(* Strucutral subsitution axioms on constructors *)
-
-(* --- weakenings --- *)
-
-(* Tarski *)
-Axiom weak_ty_prod: forall {A B}, Prod (weak_ty A) (weak_ty B) = weak_ty (Prod A B). (* TODO: Add ^+ ? *)
-Axiom weak_ty_U : forall n, weak_ty (U n) = U n.
-Axiom weak_ty_Decode : forall n t, weak_ty (Decode n t) = Decode n (weak_term t).
-
-Axiom weak_term_var : forall n, weak_term (var_term n) = var_term (n + 1).
-Axiom weak_term_Lambda : forall A B b, weak_term (Lambda A B b) = Lambda (weak_ty A) (weak_ty B) (weak_term b).
-Axiom weak_term_App : forall A B c a, weak_term (App A B c a) = App (weak_ty A) (weak_ty B) (weak_term c) (weak_term a).
-Axiom weak_term_cU : forall n m, weak_term (cU n m) = cU n m.
-Axiom weak_term_cProd : forall l a b, weak_term (cProd l a b) = cProd l (weak_term a) (weak_term b).
-Axiom weak_term_cLift : forall n m t, weak_term (cLift n m t) = cLift n m (weak_term t).
-
-(* Russell *)
-Axiom r_weak_term_U : forall n, r_weak_term (r_U n) = r_U n.
-Axiom r_weak_term_Prod : forall A B, r_weak_term (r_Prod A B) = r_Prod (r_weak_term A) (r_weak_term B).
-Axiom r_weak_term_Lambda : forall A B b, r_weak_term (r_Lambda A B b) = r_Lambda (r_weak_term A) (r_weak_term B) (r_weak_term b).
-Axiom r_weak_term_App : forall A B c a, r_weak_term (r_App A B c a) = r_App (r_weak_term A) (r_weak_term B) (r_weak_term c) (r_weak_term a).
-
-(* --- substitutions --- *)
-
-(* Tarski*)
-Axiom subst_ty_U : forall a n, subst_ty a (U n) = U n.
-Axiom subst_ty_Prod : forall a A B, subst_ty a (Prod A B) = Prod (subst_ty a A) (subst_ty (weak_term a) B).
-Axiom subst_ty_Decode : forall a n t, subst_ty a (Decode n t) = Decode n (subst_term a t).
-
-Axiom subst_term_var_0 : forall a, subst_term a (var_term 0) = a.
-Axiom subst_term_var_S : forall a n, subst_term a (var_term (S n)) = var_term n.
-Axiom subst_term_Lambda : forall a A B b, subst_term a (Lambda A B b) = Lambda (subst_ty a A) (subst_ty (weak_term a) B) (subst_term (weak_term a) b).
-Axiom subst_term_App : forall a A B c arg, subst_term a (App A B c arg) = App (subst_ty a A) (subst_ty (weak_term a) B) (subst_term a c) (subst_term a arg).
-Axiom subst_term_cU : forall a n m, subst_term a (cU n m) = cU n m.
-Axiom subst_term_cProd : forall a l b c, subst_term a (cProd l b c) = cProd l (subst_term a b) (subst_term (weak_term a) c).
-Axiom subst_term_cLift : forall a n m t, subst_term a (cLift n m t) = cLift n m (subst_term a t).
-
-(* Russell *)
-Axiom r_subst_term_var_0 : forall a, r_subst_term a (r_var_term 0) = a.
-Axiom r_subst_term_var_S : forall a n, r_subst_term a (r_var_term (S n)) = r_var_term n.
-Axiom r_subst_term_U : forall a n, r_subst_term a (r_U n) = r_U n.
-Axiom r_subst_term_Prod : forall a A B, r_subst_term a (r_Prod A B) = r_Prod (r_subst_term a A) (r_subst_term (r_weak_term a) B).
-Axiom r_subst_term_Lambda : forall a A B b, r_subst_term a (r_Lambda A B b) = r_Lambda (r_subst_term a A) (r_subst_term (r_weak_term a) B) (r_subst_term (r_weak_term a) b).
-Axiom r_subst_term_App : forall a A B c arg, r_subst_term a (r_App A B c arg) = r_App (r_subst_term a A) (r_subst_term (r_weak_term a) B) (r_subst_term a c) (r_subst_term a arg).
-
-(* --- Normalisation Axioms ---*)
+Axiom r_weak_term_lemma: forall {Γ a A B},
+    [Γ |-r a : A] ->
+    [Γ,,r B |-r a⟨↑⟩ : A⟨↑⟩].
 
 Axiom UInj: forall {Γ k l},
     [Γ |- U k = U l] ->
@@ -226,7 +179,7 @@ Proof.
       destruct Δ0.
       * 
         simpl. injection Heq. intros. subst.
-        eapply wfTermConv. instantiate (1 := weak_ty B0).
+        eapply wfTermConv. instantiate (1 := B0⟨↑⟩ ).
         ** apply wfVar0. apply type_defeq_inv in Hconv. destruct Hconv as [_ [_ HwfB]]. auto.
         **
            apply TypeSym. 
@@ -363,7 +316,7 @@ Proof.
       split. { eapply TermAppCong; eassumption. }
       split.
       * eapply wfTermApp; eauto.
-      * eapply wfTermConv. instantiate (1 := subst_ty b B').
+      * eapply wfTermConv. instantiate (1 := B'[b..]).
         -- apply type_defeq_inv in c. destruct c as [c [Hwf_A Hwf_A']].
            apply type_defeq_inv in c0. destruct c0 as [c0 [Hwf_B Hwf_B']].
            eapply wfTermApp.
@@ -421,9 +374,11 @@ Proof.
         -- exact H2.
         -- eapply wfTermConv.
            ++ eapply wfTermApp.
-              ** rewrite weak_ty_prod. eapply weak_term_lemma. exact t.
+              ** assert (Hweak : [Γ,, A |- f⟨↑⟩ : (Prod A B)⟨↑⟩]).
+              {eapply weak_term_lemma in t. instantiate (1:=A) in t. auto. }
+              asimpl in Hweak. exact Hweak.
               ** apply wfVar0. exact H2.
-           ++ rewrite subst_var_0. apply TypeRefl. exact H3.
+           ++ rewrite subst_up_var_0_ty. apply TypeRefl. exact H3.
       * exact t.
     + (* TermRefl *)
       split. { apply TermRefl; eassumption. }
@@ -611,7 +566,7 @@ Qed.
 
 Lemma app_inv Γ A B C u1 u2:
     [Γ |- App A B u1 u2 : C] ->
-    [Γ |- C = subst_ty u2 B] ×  [Γ |- A] × [Γ,,A |- B] × [Γ |- u1 : Prod A B] × [Γ |- u2 : A].
+    [Γ |- C = B[u2..]] ×  [Γ |- A] × [Γ,,A |- B] × [Γ |- u1 : Prod A B] × [Γ |- u2 : A].
 Proof.
     intros. dependent induction H.
     - apply wftype_typing_inv in H. destruct H. assert (wbis:=w). apply prod_ty_inv in wbis. destruct wbis.
@@ -622,10 +577,10 @@ Proof.
         constructor. auto. constructor. auto. constructor. auto. auto.   
 Qed.
 
- Fixpoint iter_weak (n : nat) (A : ty) : ty :=
+Fixpoint iter_weak (n : nat) (A : ty) : ty :=
   match n with
   | 0 => A
-  | S m => weak_ty (iter_weak m A)
+  | S m => (iter_weak m A)⟨↑⟩
   end.
 
 Lemma var_inv :
@@ -663,7 +618,7 @@ Qed.
 
 Lemma variable_zero_inv Γ A:
     [Γ |- var_term 0 : A] ->
-    ∑ Γ' B, [Γ |- A = weak_ty B] × (Γ = Γ' ,, B) × [Γ' |- B].
+    ∑ Γ' B, [Γ |- A = B⟨↑⟩] × (Γ = Γ' ,, B) × [Γ' |- B].
 Proof.
     intros H.
     
@@ -672,7 +627,6 @@ Proof.
       remember (var_term 0) as t.
       induction H; try discriminate.
       -  exists Γ, A. reflexivity.
-      -  inversion Heqt. contradict Heqt. lia.
       -  apply IHTypingDecl. assumption.
     }
     
@@ -704,7 +658,7 @@ Lemma variable_non_zero_inv Γ A n :
     ∑ Γ' T_head B, 
       (Γ = Γ' ,, T_head) × 
       [Γ' |- var_term n : B] × 
-      [Γ |- A = weak_ty B].
+      [Γ |- A = B⟨↑⟩].
 Proof.
     intros H.
     remember (var_term (S n)) as t.
@@ -717,7 +671,7 @@ Proof.
       + reflexivity.
       
       + split. 
-        ++ assert (n0 = n) by lia. rewrite H0 in H. exact H.
+        ++ exact H.
         ++ apply TypeRefl.
            apply weak_lemma.
            exact w. 
@@ -853,10 +807,6 @@ Qed.
 
 Definition r_subst_context (A B : russ_term) (Γ : russ_ctx) (Δ : russ_ctx) : russ_ctx :=
   Δ ++ (B :: Γ).
-
-Axiom r_weak_cong: forall {Γ A B C},
-    [Γ |-r A = B] ->
-    [Γ,,r C |-r r_weak_term A = r_weak_term B].
 
 Lemma r_context_conversion_ctx :
   (forall Γ, [ |-r Γ ] -> forall Γ' A B Δ, Γ = Δ ++ (A :: Γ') -> [Γ' |-r A = B] -> [ |-r r_subst_context A B Γ' Δ ])
@@ -1037,7 +987,7 @@ Proof.
       split. { eapply r_TermAppCong; eassumption. }
       split.
       * eapply r_wfTermApp; eauto.
-      * eapply r_wfTermConv. instantiate (1 := r_subst_term b B').
+      * eapply r_wfTermConv. instantiate (1 := B'[b..]).
         -- apply r_type_defeq_inv in r. destruct r as [r [Hwf_A Hwf_A']].
            apply r_type_defeq_inv in r0. destruct r0 as [r0 [_ Hwf_B']].
            eapply r_wfTermApp.
@@ -1072,9 +1022,11 @@ Proof.
         -- exact Hwf_A.
         -- eapply r_wfTermConv.
            ++ eapply r_wfTermApp.
-              ** rewrite <- r_weak_term_Prod. eapply r_weak_term_lemma. exact r. exact Hwf_A.
+              ** assert (Hweak : [Γ,,r A |-r f⟨↑⟩ : (r_Prod A B)⟨↑⟩]).
+              {eapply r_weak_term_lemma in r. instantiate (1:=A) in r. auto. }
+              asimpl in Hweak. exact Hweak.
               ** apply r_wfVar0. exact Hwf_A.
-           ++ rewrite r_subst_var_0. apply r_TypeRefl. exact Hwf_B.
+           ++ rewrite subst_up_var_0_russ. apply r_TypeRefl. exact Hwf_B.
       * exact r.
     + (* r_TermRefl *)
       split. { apply r_TermRefl; eassumption. }
